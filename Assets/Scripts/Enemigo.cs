@@ -49,6 +49,15 @@ public class Enemigo : MonoBehaviour
 
     void OnDestroy() { Todos.Remove(this); }
 
+    void LateUpdate()
+    {
+        // pisar siempre el terreno voxel (excepto al hundirse muerto)
+        if (muerto) return;
+        Vector3 p = transform.position;
+        p.y = GeneradorMundo.Altura(Mathf.FloorToInt(p.x), Mathf.FloorToInt(p.z));
+        transform.position = p;
+    }
+
     public void Inicializar(Jugador j, bool jefe)
     {
         jugador = j;
