@@ -1,8 +1,9 @@
 using UnityEngine;
 
 /// <summary>
-/// Nieve 2D: copos blancos que caen alrededor de la camara,
-/// con balanceo, y reaparecen arriba siguiendo el avance por el nivel.
+/// Nieve 2.5D: cubitos blancos que caen alrededor de la camara
+/// a distintas PROFUNDIDADES (algunos delante del jugador, otros detras),
+/// lo que refuerza la sensacion 3D del mundo.
 /// </summary>
 public class Nieve2D : MonoBehaviour
 {
@@ -24,7 +25,7 @@ public class Nieve2D : MonoBehaviour
             float tam = Random.Range(0.05f, 0.13f);
             Transform copo = ConstructorPersonaje.Rect(transform, "Copo_" + i,
                 Vector2.zero, new Vector2(tam, tam),
-                new Color(1f, 1f, 1f, Random.Range(0.35f, 0.8f)), 12);
+                new Color(1f, 1f, 1f, Random.Range(0.35f, 0.8f)), 0, tam);
             copo.position = Reposicionar(true);
             copos[i] = copo;
             velocidades[i] = Random.Range(0.8f, 2.2f);
@@ -39,8 +40,11 @@ public class Nieve2D : MonoBehaviour
             Vector3 p = copos[i].position;
             p.y -= velocidades[i] * Time.deltaTime;
             p.x += Mathf.Sin(Time.time * 1.4f + fases[i]) * 0.5f * Time.deltaTime;
-            if (p.y < camara.position.y - 6.5f)
-                p = Reposicionar(false);
+            if (p.y < camara.position.y - 7f)
+            {
+                Vector3 nueva = Reposicionar(false);
+                p = nueva;
+            }
             copos[i].position = p;
         }
     }
@@ -48,8 +52,8 @@ public class Nieve2D : MonoBehaviour
     Vector3 Reposicionar(bool alturaAleatoria)
     {
         Vector3 c = camara != null ? camara.position : Vector3.zero;
-        return new Vector3(c.x + Random.Range(-12f, 12f),
-                           alturaAleatoria ? c.y + Random.Range(-5f, 6f) : c.y + Random.Range(6f, 8f),
-                           0f);
+        return new Vector3(c.x + Random.Range(-13f, 13f),
+                           alturaAleatoria ? c.y + Random.Range(-5f, 7f) : c.y + Random.Range(7f, 9f),
+                           Random.Range(-2f, 6f)); // profundidad: delante y detras del jugador
     }
 }

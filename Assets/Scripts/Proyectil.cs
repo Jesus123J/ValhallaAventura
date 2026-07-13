@@ -19,12 +19,19 @@ public class Proyectil : MonoBehaviour
         Proyectil p = go.AddComponent<Proyectil>();
         p.direccion = direccion;
 
-        // nucleo blanco + halo electrico amarillo + chispas
-        ConstructorPersonaje.Rect(go.transform, "Halo", Vector2.zero, new Vector2(1.1f, 0.34f), new Color(1f, 0.9f, 0.2f, 0.45f), 9);
-        ConstructorPersonaje.Rect(go.transform, "Rayo", Vector2.zero, new Vector2(0.9f, 0.14f), new Color(1f, 0.95f, 0.4f), 10);
-        ConstructorPersonaje.Rect(go.transform, "Nucleo", Vector2.zero, new Vector2(0.7f, 0.06f), Color.white, 11);
-        ConstructorPersonaje.Rect(go.transform, "Chispa1", new Vector2(-0.35f, 0.14f), new Vector2(0.18f, 0.05f), new Color(1f, 0.95f, 0.4f), 10);
-        ConstructorPersonaje.Rect(go.transform, "Chispa2", new Vector2(-0.15f, -0.13f), new Vector2(0.15f, 0.05f), new Color(1f, 0.95f, 0.4f), 10);
+        // nucleo blanco + halo electrico amarillo + chispas (materiales emisivos: brillan)
+        ConstructorPersonaje.Rect(go.transform, "Halo", Vector2.zero, new Vector2(1.1f, 0.34f), new Color(1f, 0.9f, 0.2f, 0.45f), 9, 0.2f, true);
+        ConstructorPersonaje.Rect(go.transform, "Rayo", Vector2.zero, new Vector2(0.9f, 0.14f), new Color(1f, 0.95f, 0.4f), 10, 0.14f, true);
+        ConstructorPersonaje.Rect(go.transform, "Nucleo", Vector2.zero, new Vector2(0.7f, 0.06f), Color.white, 11, 0.1f, true);
+        ConstructorPersonaje.Rect(go.transform, "Chispa1", new Vector2(-0.35f, 0.14f), new Vector2(0.18f, 0.05f), new Color(1f, 0.95f, 0.4f), 10, 0.08f, true);
+        ConstructorPersonaje.Rect(go.transform, "Chispa2", new Vector2(-0.15f, -0.13f), new Vector2(0.15f, 0.05f), new Color(1f, 0.95f, 0.4f), 10, 0.08f, true);
+
+        // luz real que ilumina el escenario al pasar
+        Light luz = go.AddComponent<Light>();
+        luz.type = LightType.Point;
+        luz.color = new Color(1f, 0.9f, 0.3f);
+        luz.range = 7f;
+        luz.intensity = 3.5f;
     }
 
     void Update()
