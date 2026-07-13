@@ -2,11 +2,12 @@ using UnityEngine;
 using System.Collections;
 
 /// <summary>
-/// Director del juego en PRIMERA PERSONA "Camino al Valhalla - Capitulo 1":
-/// - Construye el campo de batalla 3D por codigo: suelo nevado, aurora boreal,
-///   luna, montanas, pilares runicos, altares de piedra, premios, draugr y jefe.
-/// - Historia narrada -> exploracion y combate -> jefe -> portal -> fin.
-/// - HUD con cruceta, vida, almas, poderes y guardado automatico.
+/// Director del juego en primera persona "Camino al Valhalla - Capitulo 1".
+/// - Dialogos SIN voz: texto letra a letra con sonido de tecla (clic salta / continua).
+/// - TIENDA-ARBOL de habilidades (TAB): 3 ramas x 3 habilidades, compradas con almas.
+/// - RACHA de almas: matar sin recibir dano multiplica lo que ganas (x1 -> x3).
+/// - MISIONES secundarias del nivel con bonus y RANGO final.
+/// - Cofres con premios aleatorios, guardado automatico, HUD completo.
 /// </summary>
 public class GestorAventura : MonoBehaviour
 {
@@ -14,6 +15,7 @@ public class GestorAventura : MonoBehaviour
     public Jugador Bjorn { get; private set; }
 
     static readonly Vector3 InicioJugador = new Vector3(-6f, 1.2f, 0f);
+    const int TotalAlmasDelCampo = 14;
     int metaEnemigos;
 
     Transform portal;
@@ -24,15 +26,37 @@ public class GestorAventura : MonoBehaviour
     int almas;
     int muertos;
 
+    // racha (multiplicador de almas)
+    int racha;
+    int Multiplicador { get { return 1 + Mathf.Min(2, racha / 2); } }
+
+    // misiones secundarias
+    bool sinDano = true;
+    int almasRecogidas;
+    float inicioNivel;
+    const float TiempoMision = 300f; // 5 minutos
+
     enum Estado { Intro, Jugando, Fin }
     Estado estado = Estado.Intro;
     string mensajeCentral = "";
     float avisoGuardadoHasta;
+    bool tiendaAbierta;
 
-    AudioSource musicaSrc, sfxSrc, vozSrc;
-    AudioClip sfxEspada, sfxImpacto, sfxHerido, sfxFanfarria, sfxAlmas, sfxTrueno;
+    // ----- habilidades: 3 ramas x 3 -----
+    class Habilidad
+    {
+        public string nombre, desc;
+        public int nivel, nivMax, costoBase;
+        public int Costo { get { return costoBase * (nivel + 1); } }
+        public Habilidad(string n, string d, int max, int costo) { nombre = n; desc = d; nivMax = max; costoBase = costo; }
+    }
+    static readonly string[] NombresRamas = { "GUERRERO", "TORMENTA", "EINHERJAR" };
+    Habilidad[][] habilidades;
+
+    AudioSource musicaSrc, sfxSrc;
+    AudioClip sfxEspada, sfxImpacto, sfxHerido, sfxFanfarria, sfxAlmas, sfxTrueno, sfxTecla, sfxRemate;
     Texture2D texBlanca;
-    GUIStyle estiloCentro, estiloHud;
+    GUIStyle estiloCentro, estiloHud, estiloMision, estiloTitulo;
 
     void Awake() { Instancia = this; }
 
@@ -44,21 +68,85 @@ public class GestorAventura : MonoBehaviour
         musicaSrc.volume = 0.3f;
         musicaSrc.Play();
         sfxSrc = gameObject.AddComponent<AudioSource>();
-        vozSrc = gameObject.AddComponent<AudioSource>();
         sfxEspada = GeneradorAudio.Espada();
         sfxImpacto = GeneradorAudio.Impacto();
         sfxHerido = GeneradorAudio.Herido();
         sfxFanfarria = GeneradorAudio.Fanfarria();
         sfxAlmas = GeneradorAudio.Almas();
         sfxTrueno = GeneradorAudio.Trueno();
+        sfxTecla = GeneradorAudio.Tecla();
+        sfxRemate = GeneradorAudio.Remate();
 
         texBlanca = new Texture2D(1, 1);
         texBlanca.SetPixel(0, 0, Color.white);
         texBlanca.Apply();
 
+        DefinirHabilidades();
         ConstruirMundo();
         almas = PlayerPrefs.GetInt("almas", 0);
+        CargarHabilidades();
+        AplicarHabilidades();
         StartCoroutine(Intro());
+    }
+
+    // ============================================================
+    //  HABILIDADES (tienda-arbol, TAB)
+    // ============================================================
+    void DefinirHabilidades()
+    {
+        habilidades = new Habilidad[3][];
+        habilidades[0] = new[]
+        {
+            new Habilidad("Vigor",         "+30 de vida maxima",            3, 100),
+            new Habilidad("Filo",          "+20% de dano de espada",        3, 150),
+            new Habilidad("Remate Brutal", "El 3er golpe pega +50% extra",  1, 300)
+        };
+        habilidades[1] = new[]
+        {
+            new Habilidad("Rayo Veloz",      "-0.8s de recarga del rayo",       2, 150),
+            new Habilidad("Rayo Penetrante", "El rayo ATRAVIESA enemigos",      1, 350),
+            new Habilidad("Trueno de Odin",  "Al golpear cae un trueno en area",1, 500)
+        };
+        habilidades[2] = new[]
+        {
+            new Habilidad("Piel de Hierro",  "-15% de dano recibido",   2, 150),
+            new Habilidad("Viento del Norte","-0.25s de recarga del dash", 2, 120),
+            new Habilidad("Paso Ligero",     "+8% de velocidad",        2, 120)
+        };
+    }
+
+    void CargarHabilidades()
+    {
+        for (int r = 0; r < 3; r++)
+            for (int c = 0; c < 3; c++)
+                habilidades[r][c].nivel = PlayerPrefs.GetInt("hab_" + r + "_" + c, 0);
+    }
+
+    void AplicarHabilidades()
+    {
+        Habilidad[] g = habilidades[0], t = habilidades[1], e = habilidades[2];
+        float vidaAnterior = Bjorn.vidaMax;
+        Bjorn.vidaMax = 100f + 30f * g[0].nivel;
+        Bjorn.vida += Mathf.Max(0f, Bjorn.vidaMax - vidaAnterior); // la vida extra se suma al comprar
+        Bjorn.danoMultiplicador = 1f + 0.2f * g[1].nivel;
+        Bjorn.bonoRemate = 1.7f + 0.5f * g[2].nivel;
+        Bjorn.cooldownRayo = 3.5f - 0.8f * t[0].nivel;
+        Bjorn.nivelRayo = 1 + t[1].nivel + t[2].nivel;
+        Bjorn.reduccionDano = 0.15f * e[0].nivel;
+        Bjorn.cooldownDash = 1.2f - 0.25f * e[1].nivel;
+        Bjorn.velocidad = 6.5f * (1f + 0.08f * e[2].nivel);
+    }
+
+    void ComprarHabilidad(int rama, int idx)
+    {
+        Habilidad h = habilidades[rama][idx];
+        if (h.nivel >= h.nivMax || almas < h.Costo) return;
+        almas -= h.Costo;
+        h.nivel++;
+        PlayerPrefs.SetInt("hab_" + rama + "_" + idx, h.nivel);
+        AplicarHabilidades();
+        Guardar();
+        sfxSrc.PlayOneShot(sfxFanfarria);
     }
 
     // ============================================================
@@ -66,7 +154,7 @@ public class GestorAventura : MonoBehaviour
     // ============================================================
     Transform CuboFisico(string nombre, Vector3 pos, Vector3 tam, Color color, bool visible = true)
     {
-        GameObject go = GameObject.CreatePrimitive(PrimitiveType.Cube); // conserva su collider 3D
+        GameObject go = GameObject.CreatePrimitive(PrimitiveType.Cube);
         go.name = nombre;
         go.transform.position = pos;
         go.transform.localScale = tam;
@@ -77,7 +165,6 @@ public class GestorAventura : MonoBehaviour
 
     void ConstruirMundo()
     {
-        // ---- Ambiente ----
         Camera cam = Camera.main;
         cam.fieldOfView = 70f;
         cam.nearClipPlane = 0.05f;
@@ -101,19 +188,16 @@ public class GestorAventura : MonoBehaviour
             sol.shadows = LightShadows.Soft;
         }
 
-        // ---- Jugador (la camara se vuelve sus ojos en su Awake) ----
         GameObject bjornGO = new GameObject("Bjorn");
         bjornGO.transform.position = InicioJugador;
         Bjorn = bjornGO.AddComponent<Jugador>();
 
-        // ---- Suelo nevado y muros invisibles ----
         CuboFisico("Suelo", new Vector3(55f, -1f, 0f), new Vector3(170f, 2f, 80f), new Color(0.80f, 0.85f, 0.93f));
         CuboFisico("MuroOeste", new Vector3(-14f, 4f, 0f), new Vector3(1f, 12f, 80f), Color.clear, false);
         CuboFisico("MuroEste", new Vector3(124f, 4f, 0f), new Vector3(1f, 12f, 80f), Color.clear, false);
         CuboFisico("MuroNorte", new Vector3(55f, 4f, 40f), new Vector3(170f, 12f, 1f), Color.clear, false);
         CuboFisico("MuroSur", new Vector3(55f, 4f, -40f), new Vector3(170f, 12f, 1f), Color.clear, false);
 
-        // ---- Cielo: aurora boreal y luna ----
         Color[] coloresAurora =
         {
             new Color(0.15f, 0.9f, 0.55f, 0.30f),
@@ -132,7 +216,6 @@ public class GestorAventura : MonoBehaviour
         Transform luna = ConstructorPersonaje.Circ(null, "Luna", Vector2.zero, 10f, new Color(0.95f, 0.97f, 1f), 0, true);
         luna.position = new Vector3(20f, 40f, 110f);
 
-        // ---- Cordillera alrededor del campo ----
         for (int i = 0; i < 14; i++)
         {
             float x = -20f + i * 12f;
@@ -144,7 +227,6 @@ public class GestorAventura : MonoBehaviour
             m2.rotation = Quaternion.Euler(0f, 0f, 45f);
         }
 
-        // ---- Pilares runicos a ambos lados del camino ----
         float[] pilaresX = { 5f, 24f, 47f, 65f, 82f, 105f };
         Color[] coloresRuna = { new Color(0.3f, 0.9f, 1f), new Color(0.4f, 1f, 0.6f), new Color(0.8f, 0.5f, 1f) };
         for (int i = 0; i < pilaresX.Length; i++)
@@ -152,9 +234,9 @@ public class GestorAventura : MonoBehaviour
             float z = (i % 2 == 0) ? 7f : -7f;
             Transform pilar = CuboFisico("Pilar_" + i, new Vector3(pilaresX[i], 1.8f, z), new Vector3(1f, 3.6f, 1f), new Color(0.33f, 0.36f, 0.46f));
             Color runa = coloresRuna[i % coloresRuna.Length];
-            Transform r1 = ConstructorPersonaje.Rect(pilar, "Runa1", new Vector2(0f, 0.22f), new Vector2(0.32f, 0.1f), runa, 0, 0.1f, true);
+            Transform r1 = ConstructorPersonaje.Rect(pilar, "Runa1", Vector2.zero, new Vector2(0.32f, 0.1f), runa, 0, 0.1f, true);
             r1.localPosition = new Vector3(0f, 0.22f, -0.51f);
-            Transform r2 = ConstructorPersonaje.Rect(pilar, "Runa2", new Vector2(0f, 0.05f), new Vector2(0.1f, 0.3f), runa, 0, 0.1f, true);
+            Transform r2 = ConstructorPersonaje.Rect(pilar, "Runa2", Vector2.zero, new Vector2(0.1f, 0.3f), runa, 0, 0.1f, true);
             r2.localPosition = new Vector3(0f, 0.05f, -0.51f);
             Light luzRuna = pilar.gameObject.AddComponent<Light>();
             luzRuna.type = LightType.Point;
@@ -163,7 +245,6 @@ public class GestorAventura : MonoBehaviour
             luzRuna.intensity = 1.6f;
         }
 
-        // ---- Arboles nevados y rocas dispersas ----
         float[,] arboles = { {11,14}, {33,-12}, {45,16}, {59,-15}, {76,12}, {96,-10}, {30,22}, {70,20} };
         for (int i = 0; i < arboles.GetLength(0); i++)
         {
@@ -182,12 +263,11 @@ public class GestorAventura : MonoBehaviour
             roca.rotation = Quaternion.Euler(0f, i * 37f, 0f);
         }
 
-        // ---- Altares de piedra (para saltar y alcanzar premios) ----
         float[,] altares = { {18,4}, {26,-5}, {40,6}, {55,0}, {68,-6}, {90,5} };
         for (int i = 0; i < altares.GetLength(0); i++)
             CuboFisico("Altar_" + i, new Vector3(altares[i, 0], 0.45f, altares[i, 1]), new Vector3(3f, 0.9f, 3f), new Color(0.45f, 0.49f, 0.60f));
 
-        // ---- PREMIOS ----
+        // premios
         float[,] posAlmas = { {10,1,0}, {14,1,-3}, {18,2.1f,4}, {26,2.1f,-5}, {33,1,3}, {40,2.1f,6}, {47,1,-2}, {52,1,2},
                               {63,1,-4}, {68,2.1f,-6}, {76,1,3}, {90,2.1f,5}, {95,1,-2}, {106,1,0} };
         for (int i = 0; i < posAlmas.GetLength(0); i++)
@@ -195,9 +275,14 @@ public class GestorAventura : MonoBehaviour
 
         Recompensa.Crear(Recompensa.Tipo.Pocion, new Vector3(35f, 1f, -6f));
         Recompensa.Crear(Recompensa.Tipo.Pocion, new Vector3(80f, 1f, 8f));
-        Recompensa.Crear(Recompensa.Tipo.RunaTrueno, new Vector3(55f, 2.2f, 0f)); // sobre el altar central
+        Recompensa.Crear(Recompensa.Tipo.RunaTrueno, new Vector3(55f, 2.2f, 0f));
 
-        // ---- ENEMIGOS ----
+        // cofres con premios aleatorios
+        Cofre.Crear(new Vector3(28f, 0.05f, -9f));
+        Cofre.Crear(new Vector3(58f, 0.05f, 11f));
+        Cofre.Crear(new Vector3(92f, 0.05f, -8f));
+
+        // enemigos
         float[,] draugr = { {20,3}, {30,-4}, {42,5}, {60,-5}, {72,4}, {85,-3} };
         for (int i = 0; i < draugr.GetLength(0); i++)
         {
@@ -210,7 +295,7 @@ public class GestorAventura : MonoBehaviour
         jefe.AddComponent<Enemigo>().Inicializar(Bjorn, true);
         metaEnemigos = draugr.GetLength(0) + 1;
 
-        // ---- PORTAL ----
+        // portal
         portal = new GameObject("Portal").transform;
         portal.position = new Vector3(113f, 0f, 0f);
         CuboFisico("PilarIzq", portal.position + new Vector3(0f, 2.2f, -1.8f), new Vector3(0.9f, 4.4f, 0.9f), new Color(0.33f, 0.36f, 0.46f)).SetParent(portal);
@@ -232,50 +317,59 @@ public class GestorAventura : MonoBehaviour
         luzPortal.range = 18f;
         luzPortal.intensity = 0f;
 
-        // ---- Nieve que te sigue ----
         var nieve = new GameObject("Nieve").AddComponent<Nieve>();
         nieve.centro = bjornGO.transform;
     }
 
     // ============================================================
-    //  HISTORIA
+    //  DIALOGOS letra a letra (sin voz, con sonido de tecla)
     // ============================================================
+    IEnumerator MostrarDialogo(string texto)
+    {
+        int i = 0;
+        float acumulado = 0f;
+        const float porLetra = 0.024f;
+
+        while (i < texto.Length)
+        {
+            if (Input.GetMouseButtonDown(0)) { i = texto.Length; break; } // clic: mostrar todo ya
+            acumulado += Time.deltaTime;
+            while (acumulado >= porLetra && i < texto.Length)
+            {
+                acumulado -= porLetra;
+                i++;
+                if (i % 2 == 0 && i <= texto.Length && texto[i - 1] != ' ' && texto[i - 1] != '\n')
+                    sfxSrc.PlayOneShot(sfxTecla, 0.5f);
+            }
+            mensajeCentral = texto.Substring(0, i);
+            yield return null;
+        }
+
+        mensajeCentral = texto + "\n\n- clic para continuar -";
+        yield return null;
+        while (!Input.GetMouseButtonDown(0)) yield return null;
+        mensajeCentral = "";
+    }
+
     IEnumerator Intro()
     {
         Cursor.lockState = CursorLockMode.None;
         Bjorn.controlActivo = false;
-        mensajeCentral = "CAMINO AL VALHALLA\n\nCAPITULO 1: EL CAMPO DE LOS CAIDOS" +
-                         (almas > 0 ? "\n\nPartida cargada - Almas: " + almas : "") +
-                         "\n\n(clic para continuar)";
-        Voz("av_intro1");
-        yield return EsperarClic();
 
-        mensajeCentral = "La voz de ODIN truena desde el cielo:\n\n'Los draugr profanan este campo sagrado.\nDestruyelos, y el portal se abrira.'\n\n(clic para empuñar la espada)";
-        Voz("av_intro2");
-        yield return EsperarClic();
+        yield return MostrarDialogo(
+            "CAMINO AL VALHALLA\n\nCAPITULO 1: EL CAMPO DE LOS CAIDOS" +
+            (almas > 0 ? "\n\nPartida cargada - Almas: " + almas : ""));
 
-        mensajeCentral = "";
-        Voz("av_objetivo");
+        yield return MostrarDialogo(
+            "La voz de ODIN truena desde el cielo:\n\n'Los draugr profanan este campo sagrado.\nDestruyelos, y el portal se abrira.'");
+
+        yield return MostrarDialogo(
+            "MISIONES DEL CAPITULO:\n\n- No recibas dano (+100 almas)\n- Recoge las 14 runas doradas (+100)\n- Termina en menos de 5 min (+100)\n\nPulsa TAB en cualquier momento para\ncomprar HABILIDADES con tus almas.");
+
         estado = Estado.Jugando;
+        inicioNivel = Time.time;
         Bjorn.controlActivo = true;
         Cursor.lockState = CursorLockMode.Locked;
-    }
-
-    IEnumerator EsperarClic()
-    {
-        yield return null;
-        while (!Input.GetMouseButtonDown(0)) yield return null;
-    }
-
-    void Voz(string nombre)
-    {
-        AudioClip clip = Resources.Load<AudioClip>("Voces/" + nombre);
-        if (clip != null)
-        {
-            vozSrc.Stop();
-            vozSrc.clip = clip;
-            vozSrc.Play();
-        }
     }
 
     // ============================================================
@@ -284,47 +378,66 @@ public class GestorAventura : MonoBehaviour
     public void SonidoEspada() { sfxSrc.PlayOneShot(sfxEspada); }
     public void SonidoImpacto() { sfxSrc.PlayOneShot(sfxImpacto); }
     public void SonidoTrueno() { sfxSrc.PlayOneShot(sfxTrueno); }
-    public void JugadorHerido() { sfxSrc.PlayOneShot(sfxHerido); }
+    public void SonidoRemate() { sfxSrc.PlayOneShot(sfxRemate); }
+    public void SonidoParry() { sfxSrc.PlayOneShot(sfxEspada); sfxSrc.PlayOneShot(sfxImpacto); }
+    public void MostrarAviso(string msg) { StartCoroutine(MensajeTemporal(msg, 1.4f)); }
+
+    public void JugadorHerido()
+    {
+        sfxSrc.PlayOneShot(sfxHerido);
+        sinDano = false;
+        if (racha > 0) MostrarAviso("Racha perdida...");
+        racha = 0;
+    }
 
     public void Recoger(Recompensa r)
     {
         switch (r.tipo)
         {
             case Recompensa.Tipo.Almas:
-                almas += 25;
-                sfxSrc.PlayOneShot(sfxAlmas);
-                Guardar();
+                almasRecogidas++;
+                GanarAlmas(25);
                 break;
             case Recompensa.Tipo.Pocion:
                 Bjorn.vida = Mathf.Min(Bjorn.vidaMax, Bjorn.vida + 30f);
                 sfxSrc.PlayOneShot(sfxAlmas);
-                StartCoroutine(MensajeTemporal("+30 DE VIDA", 1.4f));
+                MostrarAviso("+30 DE VIDA");
                 break;
             case Recompensa.Tipo.RunaTrueno:
                 Bjorn.poderRayo = true;
                 sfxSrc.PlayOneShot(sfxFanfarria);
-                Voz("av_poder");
-                StartCoroutine(MensajeTemporal("¡PODER DESBLOQUEADO!\n\nRAYO DE ODIN - pulsa Q", 3.5f));
+                StartCoroutine(MensajeTemporal("¡PODER DESBLOQUEADO!\n\nRAYO DE ODIN - pulsa Q\n(mejoralo en la tienda con TAB)", 3.5f));
                 Guardar();
                 break;
         }
     }
 
+    void GanarAlmas(int base_)
+    {
+        int ganadas = base_ * Multiplicador;
+        almas += ganadas;
+        sfxSrc.pitch = 1f + (Multiplicador - 1) * 0.15f; // la racha sube el tono
+        sfxSrc.PlayOneShot(sfxAlmas);
+        sfxSrc.pitch = 1f;
+        Guardar();
+    }
+
+    public void CofreAbierto(string msg) { sfxSrc.PlayOneShot(sfxFanfarria); MostrarAviso(msg); }
+    public void CofreGema() { sfxSrc.PlayOneShot(sfxFanfarria); GanarAlmas(150); MostrarAviso("¡GEMA RARA! +150 almas"); }
+
     public void EnemigoMuerto(Enemigo e)
     {
         muertos++;
-        almas += e.esJefe ? 500 : 100;
-        sfxSrc.PlayOneShot(sfxAlmas);
-        Guardar();
+        racha++;
+        GanarAlmas(e.esJefe ? 500 : 100);
 
         if (e.esJefe)
-            StartCoroutine(MensajeTemporal("¡GUARDIAN DERROTADO!\n+500 almas", 2.5f));
+            StartCoroutine(MensajeTemporal("¡GUARDIAN DERROTADO!", 2.5f));
 
         if (muertos >= metaEnemigos && !portalActivo)
         {
             portalActivo = true;
             luzPortal.intensity = 6f;
-            Voz("av_portal");
             StartCoroutine(MensajeTemporal("¡EL PORTAL SE ABRE!\nEntra en la luz.", 3f));
         }
     }
@@ -334,9 +447,8 @@ public class GestorAventura : MonoBehaviour
     IEnumerator Respawn()
     {
         Bjorn.controlActivo = false;
-        Voz("av_muerte");
         mensajeCentral = "HAS CAIDO...\n\npero un einherjar siempre se levanta.";
-        yield return new WaitForSeconds(3f);
+        yield return new WaitForSeconds(2.5f);
         Bjorn.Teletransportar(InicioJugador);
         mensajeCentral = "";
         Bjorn.controlActivo = true;
@@ -346,7 +458,7 @@ public class GestorAventura : MonoBehaviour
     {
         mensajeCentral = msg;
         yield return new WaitForSeconds(dur);
-        if (estado == Estado.Jugando) mensajeCentral = "";
+        if (estado == Estado.Jugando && !tiendaAbierta) mensajeCentral = "";
     }
 
     void Guardar()
@@ -358,16 +470,20 @@ public class GestorAventura : MonoBehaviour
 
     void Update()
     {
-        musicaSrc.volume = vozSrc.isPlaying ? 0.12f : 0.3f;
-
-        // ESC libera el raton; clic lo captura de nuevo
         if (Input.GetKeyDown(KeyCode.Escape))
             Cursor.lockState = CursorLockMode.None;
-        if (estado == Estado.Jugando && Input.GetMouseButtonDown(0) &&
+        if (estado == Estado.Jugando && !tiendaAbierta && Input.GetMouseButtonDown(0) &&
             Cursor.lockState != CursorLockMode.Locked)
             Cursor.lockState = CursorLockMode.Locked;
 
-        // portal palpitante
+        // TAB abre/cierra la tienda de habilidades
+        if (estado == Estado.Jugando && Input.GetKeyDown(KeyCode.Tab))
+        {
+            tiendaAbierta = !tiendaAbierta;
+            Bjorn.controlActivo = !tiendaAbierta;
+            Cursor.lockState = tiendaAbierta ? CursorLockMode.None : CursorLockMode.Locked;
+        }
+
         if (portalActivo && puertaMR != null)
         {
             float t = (Mathf.Sin(Time.time * 5f) + 1f) * 0.5f;
@@ -377,7 +493,7 @@ public class GestorAventura : MonoBehaviour
             luzPortal.intensity = 5f + t * 3f;
         }
 
-        if (estado == Estado.Jugando && portalActivo)
+        if (estado == Estado.Jugando && portalActivo && !tiendaAbierta)
         {
             Vector3 d = Bjorn.transform.position - portal.position;
             d.y = 0f;
@@ -392,75 +508,182 @@ public class GestorAventura : MonoBehaviour
         Bjorn.controlActivo = false;
         Cursor.lockState = CursorLockMode.None;
         PlayerPrefs.SetInt("capitulo1", 1);
-        Guardar();
         sfxSrc.PlayOneShot(sfxFanfarria);
-        Voz("av_fin");
-        mensajeCentral = "CAPITULO 1 COMPLETADO\n\nAlmas: " + almas +
-                         "\nProgreso guardado\n\nCONTINUARA...";
+
+        // evaluar misiones
+        float tiempo = Time.time - inicioNivel;
+        bool m1 = sinDano;
+        bool m2 = almasRecogidas >= TotalAlmasDelCampo;
+        bool m3 = tiempo <= TiempoMision;
+        int cumplidas = (m1 ? 1 : 0) + (m2 ? 1 : 0) + (m3 ? 1 : 0);
+        almas += cumplidas * 100;
+        Guardar();
+
+        string rango = cumplidas == 3 ? "VALHALLA" : cumplidas == 2 ? "ORO" : cumplidas == 1 ? "PLATA" : "BRONCE";
+        string Marca(bool ok) { return ok ? "[X]" : "[ ]"; }
+
+        mensajeCentral =
+            "CAPITULO 1 COMPLETADO\n\n" +
+            "Tiempo: " + Mathf.FloorToInt(tiempo / 60f) + ":" + Mathf.FloorToInt(tiempo % 60f).ToString("00") + "\n\n" +
+            Marca(m1) + " Sin recibir dano\n" +
+            Marca(m2) + " Las 14 runas doradas (" + almasRecogidas + "/14)\n" +
+            Marca(m3) + " Menos de 5 minutos\n\n" +
+            "Bonus: +" + (cumplidas * 100) + " almas   |   Total: " + almas + "\n\n" +
+            "RANGO: " + rango + "\n\nCONTINUARA...";
         yield break;
     }
 
     // ============================================================
-    //  HUD
+    //  HUD + TIENDA
     // ============================================================
     void OnGUI()
     {
         if (estiloCentro == null)
         {
-            estiloCentro = new GUIStyle(GUI.skin.label)
-            { fontSize = 26, alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold };
+            estiloCentro = new GUIStyle(GUI.skin.label) { fontSize = 24, alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold };
             estiloCentro.normal.textColor = Color.white;
-            estiloHud = new GUIStyle(GUI.skin.label)
-            { fontSize = 17, fontStyle = FontStyle.Bold };
+            estiloHud = new GUIStyle(GUI.skin.label) { fontSize = 17, fontStyle = FontStyle.Bold };
             estiloHud.normal.textColor = Color.white;
+            estiloMision = new GUIStyle(GUI.skin.label) { fontSize = 14, fontStyle = FontStyle.Bold, alignment = TextAnchor.UpperRight };
+            estiloMision.normal.textColor = new Color(0.8f, 0.9f, 1f);
+            estiloTitulo = new GUIStyle(GUI.skin.label) { fontSize = 20, alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold };
+            estiloTitulo.normal.textColor = new Color(1f, 0.85f, 0.3f);
         }
 
-        if (estado == Estado.Jugando && Bjorn != null)
-        {
-            // cruceta de mira
-            float cx = Screen.width / 2f, cy = Screen.height / 2f;
-            GUI.color = new Color(1f, 1f, 1f, 0.8f);
-            GUI.DrawTexture(new Rect(cx - 8, cy - 1, 16, 2), texBlanca);
-            GUI.DrawTexture(new Rect(cx - 1, cy - 8, 2, 16), texBlanca);
-            GUI.color = Color.white;
+        if (estado == Estado.Jugando && Bjorn != null && !tiendaAbierta)
+            DibujarHUD();
 
-            // barra de vida
-            GUI.color = new Color(0f, 0f, 0f, 0.6f);
-            GUI.DrawTexture(new Rect(18, 18, 304, 30), texBlanca);
-            GUI.color = new Color(0.85f, 0.2f, 0.15f);
-            GUI.DrawTexture(new Rect(20, 20, 300f * Mathf.Clamp01(Bjorn.vida / Bjorn.vidaMax), 26), texBlanca);
-            GUI.color = Color.white;
-            GUI.Label(new Rect(26, 21, 300, 26), "VIDA", estiloHud);
+        if (tiendaAbierta)
+            DibujarTienda();
 
-            GUI.Label(new Rect(20, 54, 400, 30), "Almas: " + almas, estiloHud);
-
-            GUI.Label(new Rect(Screen.width / 2 - 220, 16, 440, 30),
-                      portalActivo ? "OBJETIVO: entra al portal de luz"
-                                   : "OBJETIVO: acaba con los draugr  (" + muertos + "/" + metaEnemigos + ")",
-                      new GUIStyle(estiloHud) { alignment = TextAnchor.MiddleCenter });
-
-            DibujarPoder(new Rect(20, Screen.height - 96, 150, 26), "SHIFT  Dash",
-                         1f - Mathf.Clamp01(Bjorn.cdDashRestante / Bjorn.cooldownDash), true);
-            DibujarPoder(new Rect(20, Screen.height - 64, 150, 26),
-                         Bjorn.poderRayo ? "Q  Rayo de Odin" : "?  Runa perdida...",
-                         Bjorn.poderRayo ? 1f - Mathf.Clamp01(Bjorn.cdRayoRestante / Bjorn.cooldownRayo) : 0f,
-                         Bjorn.poderRayo);
-
-            GUI.Label(new Rect(20, Screen.height - 32, 900, 30),
-                      "WASD: moverse  |  Raton: mirar  |  Clic: espada  |  ESPACIO: saltar  |  SHIFT: dash  |  Q: poder  |  ESC: liberar raton",
-                      estiloHud);
-
-            if (Time.time < avisoGuardadoHasta)
-                GUI.Label(new Rect(Screen.width - 240, 16, 220, 30), "Progreso guardado ✓", estiloHud);
-        }
-
-        if (!string.IsNullOrEmpty(mensajeCentral))
+        if (!string.IsNullOrEmpty(mensajeCentral) && !tiendaAbierta)
         {
             GUI.color = new Color(0f, 0f, 0f, 0.55f);
-            GUI.DrawTexture(new Rect(0, Screen.height * 0.30f, Screen.width, Screen.height * 0.40f), texBlanca);
+            GUI.DrawTexture(new Rect(0, Screen.height * 0.26f, Screen.width, Screen.height * 0.48f), texBlanca);
             GUI.color = Color.white;
-            GUI.Label(new Rect(0, Screen.height * 0.30f, Screen.width, Screen.height * 0.40f),
-                      mensajeCentral, estiloCentro);
+            GUI.Label(new Rect(0, Screen.height * 0.26f, Screen.width, Screen.height * 0.48f), mensajeCentral, estiloCentro);
+        }
+    }
+
+    void DibujarHUD()
+    {
+        // cruceta
+        float cx = Screen.width / 2f, cy = Screen.height / 2f;
+        GUI.color = new Color(1f, 1f, 1f, 0.8f);
+        GUI.DrawTexture(new Rect(cx - 8, cy - 1, 16, 2), texBlanca);
+        GUI.DrawTexture(new Rect(cx - 1, cy - 8, 2, 16), texBlanca);
+        GUI.color = Color.white;
+
+        // vida
+        GUI.color = new Color(0f, 0f, 0f, 0.6f);
+        GUI.DrawTexture(new Rect(18, 18, 304, 30), texBlanca);
+        GUI.color = new Color(0.85f, 0.2f, 0.15f);
+        GUI.DrawTexture(new Rect(20, 20, 300f * Mathf.Clamp01(Bjorn.vida / Bjorn.vidaMax), 26), texBlanca);
+        GUI.color = Color.white;
+        GUI.Label(new Rect(26, 21, 300, 26), "VIDA  " + Mathf.CeilToInt(Bjorn.vida) + "/" + Mathf.CeilToInt(Bjorn.vidaMax), estiloHud);
+
+        // almas + racha
+        string racha_ = Multiplicador > 1 ? "   RACHA x" + Multiplicador + "!" : "";
+        GUI.Label(new Rect(20, 54, 400, 30), "Almas: " + almas + racha_, estiloHud);
+
+        // objetivo
+        GUI.Label(new Rect(Screen.width / 2 - 220, 16, 440, 30),
+                  portalActivo ? "OBJETIVO: entra al portal de luz"
+                               : "OBJETIVO: acaba con los draugr  (" + muertos + "/" + metaEnemigos + ")",
+                  new GUIStyle(estiloHud) { alignment = TextAnchor.MiddleCenter });
+
+        // misiones secundarias (derecha)
+        float tiempo = Time.time - inicioNivel;
+        GUI.Label(new Rect(Screen.width - 320, 50, 300, 90),
+                  (sinDano ? "O" : "X") + " Sin recibir dano\n" +
+                  "O Runas doradas " + almasRecogidas + "/14\n" +
+                  (tiempo <= TiempoMision ? "O" : "X") + " Tiempo " + Mathf.FloorToInt(tiempo / 60f) + ":" + Mathf.FloorToInt(tiempo % 60f).ToString("00") + " / 5:00",
+                  estiloMision);
+
+        // combo
+        if (Time.time < Bjorn.comboHasta && Bjorn.combo > 1)
+            GUI.Label(new Rect(cx - 100, cy + 30, 200, 30),
+                      Bjorn.combo == 3 ? "¡REMATE!" : "COMBO x" + Bjorn.combo,
+                      new GUIStyle(estiloHud) { alignment = TextAnchor.MiddleCenter });
+
+        // carga del golpe cargado
+        if (Bjorn.carga01 > 0.01f)
+        {
+            GUI.color = new Color(0f, 0f, 0f, 0.6f);
+            GUI.DrawTexture(new Rect(cx - 60, cy + 60, 120, 12), texBlanca);
+            GUI.color = Bjorn.carga01 >= 1f ? new Color(1f, 0.5f, 0.1f) : new Color(1f, 0.85f, 0.2f);
+            GUI.DrawTexture(new Rect(cx - 58, cy + 62, 116 * Bjorn.carga01, 8), texBlanca);
+            GUI.color = Color.white;
+        }
+
+        // poderes
+        DibujarPoder(new Rect(20, Screen.height - 96, 165, 26), "SHIFT  Dash",
+                     1f - Mathf.Clamp01(Bjorn.cdDashRestante / Bjorn.cooldownDash), true);
+        DibujarPoder(new Rect(20, Screen.height - 64, 165, 26),
+                     Bjorn.poderRayo ? "Q  Rayo Nv." + Bjorn.nivelRayo : "?  Runa perdida...",
+                     Bjorn.poderRayo ? 1f - Mathf.Clamp01(Bjorn.cdRayoRestante / Bjorn.cooldownRayo) : 0f,
+                     Bjorn.poderRayo);
+
+        GUI.Label(new Rect(20, Screen.height - 32, 1100, 30),
+                  "WASD + Raton  |  Clic: combo (manten: cargado)  |  Clic der: bloquear/parry  |  ESPACIO x2: doble salto  |  SHIFT: dash  |  Q: rayo  |  TAB: habilidades",
+                  estiloHud);
+
+        if (Time.time < avisoGuardadoHasta)
+            GUI.Label(new Rect(Screen.width - 240, 16, 220, 30), "Progreso guardado ✓", estiloHud);
+    }
+
+    void DibujarTienda()
+    {
+        float w = Mathf.Min(900f, Screen.width - 60f);
+        float h = 420f;
+        float x0 = (Screen.width - w) / 2f;
+        float y0 = (Screen.height - h) / 2f;
+
+        GUI.color = new Color(0.04f, 0.05f, 0.12f, 0.95f);
+        GUI.DrawTexture(new Rect(x0, y0, w, h), texBlanca);
+        GUI.color = Color.white;
+
+        GUI.Label(new Rect(x0, y0 + 12, w, 30), "ARBOL DE HABILIDADES", estiloTitulo);
+        GUI.Label(new Rect(x0, y0 + 40, w, 26), "Almas disponibles: " + almas + "        (TAB para volver al combate)",
+                  new GUIStyle(estiloHud) { alignment = TextAnchor.MiddleCenter });
+
+        float colW = w / 3f;
+        for (int r = 0; r < 3; r++)
+        {
+            float cx = x0 + r * colW;
+            GUI.Label(new Rect(cx, y0 + 78, colW, 26), NombresRamas[r],
+                      new GUIStyle(estiloHud) { alignment = TextAnchor.MiddleCenter });
+
+            for (int c = 0; c < 3; c++)
+            {
+                Habilidad hab = habilidades[r][c];
+                float hy = y0 + 112 + c * 96;
+
+                GUI.color = new Color(1f, 1f, 1f, 0.08f);
+                GUI.DrawTexture(new Rect(cx + 10, hy, colW - 20, 86), texBlanca);
+                GUI.color = Color.white;
+
+                string pips = "";
+                for (int p = 0; p < hab.nivMax; p++) pips += p < hab.nivel ? "●" : "○";
+                GUI.Label(new Rect(cx + 18, hy + 4, colW - 36, 22), hab.nombre + "  " + pips, estiloHud);
+                GUI.Label(new Rect(cx + 18, hy + 26, colW - 36, 22), hab.desc,
+                          new GUIStyle(estiloMision) { alignment = TextAnchor.UpperLeft });
+
+                if (hab.nivel >= hab.nivMax)
+                {
+                    GUI.Label(new Rect(cx + 18, hy + 52, colW - 36, 26), "COMPLETA",
+                              new GUIStyle(estiloHud) { normal = { textColor = new Color(0.4f, 1f, 0.6f) } });
+                }
+                else
+                {
+                    bool alcanza = almas >= hab.Costo;
+                    GUI.enabled = alcanza;
+                    if (GUI.Button(new Rect(cx + 18, hy + 50, colW - 36, 28),
+                                   "Mejorar  (" + hab.Costo + " almas)"))
+                        ComprarHabilidad(r, c);
+                    GUI.enabled = true;
+                }
+            }
         }
     }
 

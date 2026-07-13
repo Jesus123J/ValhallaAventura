@@ -63,6 +63,29 @@ public static class GeneradorAudio
         return Secuencia("almas", new[] { 660f, 880f, 1100f }, 0.07f, 0.35f);
     }
 
+    /// <summary>Tic corto de maquina de escribir para los dialogos.</summary>
+    public static AudioClip Tecla()
+    {
+        return Secuencia("tecla", new[] { 1150f }, 0.028f, 0.22f);
+    }
+
+    /// <summary>Golpe de remate: impacto grave y pesado (tercer golpe del combo).</summary>
+    public static AudioClip Remate()
+    {
+        System.Random r = new System.Random(999);
+        float dur = 0.28f;
+        int n = Mathf.RoundToInt(dur * FS);
+        float[] datos = new float[n];
+        for (int i = 0; i < n; i++)
+        {
+            float t = (float)i / FS;
+            float grave = Mathf.Sin(2f * Mathf.PI * 55f * t) * Mathf.Exp(-t * 12f) * 0.85f;
+            float golpe = (float)(r.NextDouble() * 2.0 - 1.0) * Mathf.Exp(-t * 45f) * 0.4f;
+            datos[i] = grave + golpe;
+        }
+        return Clip("remate", datos);
+    }
+
     /// <summary>Rayo de Odin: zumbido electrico que cae en picada.</summary>
     public static AudioClip Trueno()
     {
