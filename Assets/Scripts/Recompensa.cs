@@ -1,10 +1,10 @@
 using UnityEngine;
 
 /// <summary>
-/// Premios recogibles del nivel (flotan y brillan; se recogen al tocarlos):
-/// - ALMAS: runa dorada, +25 almas.
-/// - POCION: hidromiel curativa, +30 de vida.
-/// - RUNA DEL TRUENO: desbloquea el poder Rayo de Odin (tecla Q).
+/// Premios 3D: giran sobre si mismos, flotan y brillan en el campo.
+/// - ALMAS: runa dorada (+25)
+/// - POCION: hidromiel curativa (+30 vida)
+/// - RUNA DEL TRUENO: desbloquea el Rayo de Odin (Q)
 /// </summary>
 public class Recompensa : MonoBehaviour
 {
@@ -14,7 +14,7 @@ public class Recompensa : MonoBehaviour
     private Vector3 posBase;
     private float fase;
 
-    public static Recompensa Crear(Tipo tipo, Vector2 pos)
+    public static Recompensa Crear(Tipo tipo, Vector3 pos)
     {
         GameObject go = new GameObject("Premio_" + tipo);
         go.transform.position = pos;
@@ -24,31 +24,36 @@ public class Recompensa : MonoBehaviour
 
         switch (tipo)
         {
-            case Tipo.Almas: // runa dorada en rombo con halo
-                ConstructorPersonaje.Circ(t, "Halo", Vector2.zero, 0.85f, new Color(1f, 0.85f, 0.3f, 0.25f), 7);
-                Transform rombo = ConstructorPersonaje.Rect(t, "Runa", Vector2.zero, new Vector2(0.34f, 0.34f), new Color(1f, 0.8f, 0.15f), 8);
+            case Tipo.Almas:
+                ConstructorPersonaje.Circ(t, "Halo", Vector2.zero, 0.9f, new Color(1f, 0.85f, 0.3f, 0.25f), 0, true);
+                Transform rombo = ConstructorPersonaje.Rect(t, "Runa", Vector2.zero, new Vector2(0.34f, 0.34f), new Color(1f, 0.8f, 0.15f), 0, 0.1f, true);
                 rombo.localRotation = Quaternion.Euler(0f, 0f, 45f);
-                ConstructorPersonaje.Rect(t, "Marca", Vector2.zero, new Vector2(0.07f, 0.22f), new Color(0.55f, 0.35f, 0.05f), 9);
+                ConstructorPersonaje.Rect(t, "Marca", Vector2.zero, new Vector2(0.07f, 0.22f), new Color(0.55f, 0.35f, 0.05f), 1, 0.12f);
                 break;
 
-            case Tipo.Pocion: // cuerno de hidromiel rojo curativo
-                ConstructorPersonaje.Circ(t, "Halo", Vector2.zero, 0.9f, new Color(1f, 0.3f, 0.35f, 0.22f), 7);
-                ConstructorPersonaje.Rect(t, "Frasco", Vector2.zero, new Vector2(0.34f, 0.44f), new Color(0.85f, 0.15f, 0.2f), 8);
-                ConstructorPersonaje.Rect(t, "Tapa", new Vector2(0f, 0.27f), new Vector2(0.16f, 0.12f), new Color(0.5f, 0.35f, 0.2f), 9);
-                ConstructorPersonaje.Rect(t, "Cruz1", Vector2.zero, new Vector2(0.2f, 0.06f), Color.white, 9);
-                ConstructorPersonaje.Rect(t, "Cruz2", Vector2.zero, new Vector2(0.06f, 0.2f), Color.white, 9);
+            case Tipo.Pocion:
+                ConstructorPersonaje.Circ(t, "Halo", Vector2.zero, 0.95f, new Color(1f, 0.3f, 0.35f, 0.22f), 0, true);
+                ConstructorPersonaje.Rect(t, "Frasco", Vector2.zero, new Vector2(0.34f, 0.44f), new Color(0.85f, 0.15f, 0.2f), 0, 0.3f);
+                ConstructorPersonaje.Rect(t, "Tapa", new Vector2(0f, 0.27f), new Vector2(0.16f, 0.12f), new Color(0.5f, 0.35f, 0.2f), 0, 0.16f);
+                ConstructorPersonaje.Rect(t, "Cruz1", Vector2.zero, new Vector2(0.2f, 0.06f), Color.white, 1, 0.06f);
+                ConstructorPersonaje.Rect(t, "Cruz2", Vector2.zero, new Vector2(0.06f, 0.2f), Color.white, 1, 0.06f);
                 break;
 
-            case Tipo.RunaTrueno: // runa electrica amarilla, grande y pulsante
-                ConstructorPersonaje.Circ(t, "Halo", Vector2.zero, 1.6f, new Color(1f, 0.95f, 0.3f, 0.3f), 7);
-                ConstructorPersonaje.Rect(t, "Piedra", Vector2.zero, new Vector2(0.55f, 0.7f), new Color(0.35f, 0.38f, 0.45f), 8);
-                // rayo en zigzag (3 trazos)
-                Transform z1 = ConstructorPersonaje.Rect(t, "Z1", new Vector2(0.04f, 0.15f), new Vector2(0.3f, 0.08f), new Color(1f, 0.95f, 0.3f), 9);
+            case Tipo.RunaTrueno:
+                ConstructorPersonaje.Circ(t, "Halo", Vector2.zero, 1.8f, new Color(1f, 0.95f, 0.3f, 0.3f), 0, true);
+                ConstructorPersonaje.Rect(t, "Piedra", Vector2.zero, new Vector2(0.55f, 0.7f), new Color(0.35f, 0.38f, 0.45f), 0, 0.3f);
+                Transform z1 = ConstructorPersonaje.Rect(t, "Z1", new Vector2(0.04f, 0.15f), new Vector2(0.3f, 0.08f), new Color(1f, 0.95f, 0.3f), 1, 0.1f, true);
                 z1.localRotation = Quaternion.Euler(0f, 0f, -55f);
-                Transform z2 = ConstructorPersonaje.Rect(t, "Z2", new Vector2(-0.02f, 0f), new Vector2(0.3f, 0.08f), new Color(1f, 0.95f, 0.3f), 9);
+                Transform z2 = ConstructorPersonaje.Rect(t, "Z2", new Vector2(-0.02f, 0f), new Vector2(0.3f, 0.08f), new Color(1f, 0.95f, 0.3f), 1, 0.1f, true);
                 z2.localRotation = Quaternion.Euler(0f, 0f, 55f);
-                Transform z3 = ConstructorPersonaje.Rect(t, "Z3", new Vector2(0.04f, -0.16f), new Vector2(0.3f, 0.08f), new Color(1f, 0.95f, 0.3f), 9);
+                Transform z3 = ConstructorPersonaje.Rect(t, "Z3", new Vector2(0.04f, -0.16f), new Vector2(0.3f, 0.08f), new Color(1f, 0.95f, 0.3f), 1, 0.1f, true);
                 z3.localRotation = Quaternion.Euler(0f, 0f, -55f);
+
+                Light luz = t.gameObject.AddComponent<Light>();
+                luz.type = LightType.Point;
+                luz.color = new Color(1f, 0.95f, 0.3f);
+                luz.range = 8f;
+                luz.intensity = 2.5f;
                 break;
         }
         return r;
@@ -57,22 +62,19 @@ public class Recompensa : MonoBehaviour
     void Start()
     {
         posBase = transform.position;
-        fase = transform.position.x * 1.7f; // desincroniza el flote entre premios
+        fase = transform.position.x * 1.7f;
     }
 
     void Update()
     {
-        // flotar y latir
+        // girar como item de juego + flotar
+        transform.Rotate(0f, 80f * Time.deltaTime, 0f, Space.World);
         transform.position = posBase + Vector3.up * Mathf.Sin(Time.time * 2.5f + fase) * 0.15f;
-        float pulso = 1f + Mathf.Sin(Time.time * 4f + fase) * (tipo == Tipo.RunaTrueno ? 0.12f : 0.06f);
-        transform.localScale = Vector3.one * pulso;
 
-        // recoger al tocar
         Jugador j = GestorAventura.Instancia != null ? GestorAventura.Instancia.Bjorn : null;
         if (j == null) return;
-        float dx = Mathf.Abs(j.transform.position.x - transform.position.x);
-        float dy = Mathf.Abs(j.transform.position.y + 1f - transform.position.y);
-        if (dx < 0.75f && dy < 1.2f)
+        Vector3 d = j.transform.position + Vector3.up * 1f - transform.position;
+        if (d.magnitude < 1.3f)
         {
             GestorAventura.Instancia.Recoger(this);
             Destroy(gameObject);

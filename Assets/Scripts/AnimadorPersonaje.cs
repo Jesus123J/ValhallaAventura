@@ -2,9 +2,9 @@ using UnityEngine;
 using System.Collections;
 
 /// <summary>
-/// Animacion 2D procedimental del titere:
-/// - Caminar: piernas y brazos oscilan (onda seno) girando en Z.
-/// - Atacar: el brazo de la espada echa atras y descarga un tajo hacia adelante.
+/// Animacion procedimental de los personajes voxel en 3D:
+/// - Caminar: brazos y piernas oscilan hacia adelante/atras (eje X).
+/// - Atacar: el brazo del arma se alza sobre la cabeza y descarga el golpe.
 /// </summary>
 public class AnimadorPersonaje : MonoBehaviour
 {
@@ -18,15 +18,15 @@ public class AnimadorPersonaje : MonoBehaviour
 
     void Update()
     {
-        if (caminando) fase += Time.deltaTime * 11f;
-        float ang = caminando ? Mathf.Sin(fase) * 32f : 0f;
+        if (caminando) fase += Time.deltaTime * 10f;
+        float ang = caminando ? Mathf.Sin(fase) * 35f : 0f;
 
-        piernaDer.localRotation = Quaternion.Euler(0f, 0f, ang);
-        piernaIzq.localRotation = Quaternion.Euler(0f, 0f, -ang);
+        piernaDer.localRotation = Quaternion.Euler(ang, 0f, 0f);
+        piernaIzq.localRotation = Quaternion.Euler(-ang, 0f, 0f);
         if (!atacando)
         {
-            brazoDer.localRotation = Quaternion.Euler(0f, 0f, -ang * 0.7f);
-            brazoIzq.localRotation = Quaternion.Euler(0f, 0f, ang * 0.7f);
+            brazoDer.localRotation = Quaternion.Euler(-ang * 0.7f, 0f, 0f);
+            brazoIzq.localRotation = Quaternion.Euler(ang * 0.7f, 0f, 0f);
         }
     }
 
@@ -39,9 +39,9 @@ public class AnimadorPersonaje : MonoBehaviour
     IEnumerator AnimAtaque()
     {
         atacando = true;
-        yield return Girar(brazoDer, 0f, -110f, 0.09f);  // echar la espada atras
-        yield return Girar(brazoDer, -110f, 95f, 0.08f); // ¡tajo hacia adelante!
-        yield return Girar(brazoDer, 95f, 0f, 0.15f);    // volver
+        yield return Girar(brazoDer, 0f, -140f, 0.14f);  // alzar el arma
+        yield return Girar(brazoDer, -140f, 40f, 0.09f); // ¡golpe!
+        yield return Girar(brazoDer, 40f, 0f, 0.16f);    // volver
         atacando = false;
     }
 
@@ -49,9 +49,9 @@ public class AnimadorPersonaje : MonoBehaviour
     {
         for (float x = 0f; x < dur; x += Time.deltaTime)
         {
-            t.localRotation = Quaternion.Euler(0f, 0f, Mathf.Lerp(de, a, x / dur));
+            t.localRotation = Quaternion.Euler(Mathf.Lerp(de, a, x / dur), 0f, 0f);
             yield return null;
         }
-        t.localRotation = Quaternion.Euler(0f, 0f, a);
+        t.localRotation = Quaternion.Euler(a, 0f, 0f);
     }
 }

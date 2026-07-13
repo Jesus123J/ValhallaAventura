@@ -1,44 +1,43 @@
 using UnityEngine;
 
 /// <summary>
-/// Rayo de Odin: proyectil electrico que cruza la pantalla
-/// y fulmina al primer draugr que toca (60 de dano).
+/// Rayo de Odin en 3D: sale disparado hacia donde MIRAS,
+/// iluminando el campo, y fulmina al primer draugr que toca.
 /// </summary>
 public class Proyectil : MonoBehaviour
 {
-    const float Velocidad = 15f;
+    const float Velocidad = 18f;
     const float Dano = 60f;
 
-    private int direccion;
-    private float vidaRestante = 1.1f;
+    private Vector3 direccion;
+    private float vidaRestante = 1.4f;
 
-    public static void Crear(Vector3 pos, int direccion)
+    public static void Crear(Vector3 pos, Vector3 direccion)
     {
         GameObject go = new GameObject("RayoDeOdin");
         go.transform.position = pos;
+        go.transform.rotation = Quaternion.LookRotation(direccion);
         Proyectil p = go.AddComponent<Proyectil>();
-        p.direccion = direccion;
+        p.direccion = direccion.normalized;
 
-        // nucleo blanco + halo electrico amarillo + chispas (materiales emisivos: brillan)
-        ConstructorPersonaje.Rect(go.transform, "Halo", Vector2.zero, new Vector2(1.1f, 0.34f), new Color(1f, 0.9f, 0.2f, 0.45f), 9, 0.2f, true);
-        ConstructorPersonaje.Rect(go.transform, "Rayo", Vector2.zero, new Vector2(0.9f, 0.14f), new Color(1f, 0.95f, 0.4f), 10, 0.14f, true);
-        ConstructorPersonaje.Rect(go.transform, "Nucleo", Vector2.zero, new Vector2(0.7f, 0.06f), Color.white, 11, 0.1f, true);
-        ConstructorPersonaje.Rect(go.transform, "Chispa1", new Vector2(-0.35f, 0.14f), new Vector2(0.18f, 0.05f), new Color(1f, 0.95f, 0.4f), 10, 0.08f, true);
-        ConstructorPersonaje.Rect(go.transform, "Chispa2", new Vector2(-0.15f, -0.13f), new Vector2(0.15f, 0.05f), new Color(1f, 0.95f, 0.4f), 10, 0.08f, true);
+        // nucleo + halo electrico (a lo largo del eje de vuelo)
+        Transform halo = ConstructorPersonaje.Rect(go.transform, "Halo", Vector2.zero, new Vector2(0.34f, 0.34f), new Color(1f, 0.9f, 0.2f, 0.45f), 0, 1.1f, true);
+        Transform rayo = ConstructorPersonaje.Rect(go.transform, "Rayo", Vector2.zero, new Vector2(0.14f, 0.14f), new Color(1f, 0.95f, 0.4f), 0, 0.9f, true);
+        Transform nucleo = ConstructorPersonaje.Rect(go.transform, "Nucleo", Vector2.zero, new Vector2(0.06f, 0.06f), Color.white, 0, 0.7f, true);
+        halo.localPosition = rayo.localPosition = nucleo.localPosition = Vector3.zero;
 
-        // luz real que ilumina el escenario al pasar
         Light luz = go.AddComponent<Light>();
         luz.type = LightType.Point;
         luz.color = new Color(1f, 0.9f, 0.3f);
-        luz.range = 7f;
-        luz.intensity = 3.5f;
+        luz.range = 9f;
+        luz.intensity = 4f;
     }
 
     void Update()
     {
-        transform.position += Vector3.right * direccion * Velocidad * Time.deltaTime;
-        transform.localScale = new Vector3(1f + Mathf.Sin(Time.time * 60f) * 0.15f,
-                                           1f + Mathf.Sin(Time.time * 47f) * 0.25f, 1f);
+        transform.position += direccion * Velocidad * Time.deltaTime;
+        float palpito = 1f + Mathf.Sin(Time.time * 55f) * 0.2f;
+        transform.localScale = new Vector3(palpito, palpito, 1f);
 
         vidaRestante -= Time.deltaTime;
         if (vidaRestante <= 0f) { Destroy(gameObject); return; }
@@ -46,11 +45,10 @@ public class Proyectil : MonoBehaviour
         foreach (Enemigo e in Enemigo.Todos)
         {
             if (e == null || e.muerto) continue;
-            float dx = Mathf.Abs(e.transform.position.x - transform.position.x);
-            float dy = Mathf.Abs(e.transform.position.y + 1f - transform.position.y);
-            if (dx < 0.9f && dy < 1.5f)
+            Vector3 d = (e.transform.position + Vector3.up * 1.1f) - transform.position;
+            if (d.magnitude < 1.1f)
             {
-                e.RecibirDano(Dano, transform.position - Vector3.right * direccion);
+                e.RecibirDano(Dano, transform.position - direccion);
                 GestorAventura.Instancia.SonidoImpacto();
                 Destroy(gameObject);
                 return;

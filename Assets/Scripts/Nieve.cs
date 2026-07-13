@@ -1,14 +1,13 @@
 using UnityEngine;
 
 /// <summary>
-/// Nieve 2.5D: cubitos blancos que caen alrededor de la camara
-/// a distintas PROFUNDIDADES (algunos delante del jugador, otros detras),
-/// lo que refuerza la sensacion 3D del mundo.
+/// Nieve 3D: copos que caen alrededor del jugador en todas direcciones
+/// y reaparecen arriba, siguiendote por el campo de batalla.
 /// </summary>
-public class Nieve2D : MonoBehaviour
+public class Nieve : MonoBehaviour
 {
-    [HideInInspector] public Transform camara;
-    public int cantidad = 60;
+    [HideInInspector] public Transform centro;
+    public int cantidad = 80;
 
     private Transform[] copos;
     private float[] velocidades;
@@ -22,7 +21,7 @@ public class Nieve2D : MonoBehaviour
 
         for (int i = 0; i < cantidad; i++)
         {
-            float tam = Random.Range(0.05f, 0.13f);
+            float tam = Random.Range(0.05f, 0.11f);
             Transform copo = ConstructorPersonaje.Rect(transform, "Copo_" + i,
                 Vector2.zero, new Vector2(tam, tam),
                 new Color(1f, 1f, 1f, Random.Range(0.35f, 0.8f)), 0, tam);
@@ -40,20 +39,17 @@ public class Nieve2D : MonoBehaviour
             Vector3 p = copos[i].position;
             p.y -= velocidades[i] * Time.deltaTime;
             p.x += Mathf.Sin(Time.time * 1.4f + fases[i]) * 0.5f * Time.deltaTime;
-            if (p.y < camara.position.y - 7f)
-            {
-                Vector3 nueva = Reposicionar(false);
-                p = nueva;
-            }
+            if (p.y < 0f)
+                p = Reposicionar(false);
             copos[i].position = p;
         }
     }
 
     Vector3 Reposicionar(bool alturaAleatoria)
     {
-        Vector3 c = camara != null ? camara.position : Vector3.zero;
-        return new Vector3(c.x + Random.Range(-13f, 13f),
-                           alturaAleatoria ? c.y + Random.Range(-5f, 7f) : c.y + Random.Range(7f, 9f),
-                           Random.Range(-2f, 6f)); // profundidad: delante y detras del jugador
+        Vector3 c = centro != null ? centro.position : Vector3.zero;
+        return new Vector3(c.x + Random.Range(-16f, 16f),
+                           alturaAleatoria ? Random.Range(1f, 11f) : Random.Range(9f, 12f),
+                           c.z + Random.Range(-16f, 16f));
     }
 }

@@ -2,19 +2,18 @@ using UnityEngine;
 using System.Collections;
 
 /// <summary>
-/// Director del juego 2.5D "Camino al Valhalla - Capitulo 1":
-/// - Construye TODO el nivel con geometria 3D real (luz, sombra, niebla) por codigo:
-///   aurora boreal y montanas a profundidad real (parallax autentico de perspectiva),
-///   suelo nevado, plataformas, pilares runicos brillantes, premios, draugr y jefe.
-/// - El gameplay sigue siendo lateral y simple (fisica 2D intacta).
-/// - Modo historia narrado, premios, poderes, HUD y guardado automatico.
+/// Director del juego en PRIMERA PERSONA "Camino al Valhalla - Capitulo 1":
+/// - Construye el campo de batalla 3D por codigo: suelo nevado, aurora boreal,
+///   luna, montanas, pilares runicos, altares de piedra, premios, draugr y jefe.
+/// - Historia narrada -> exploracion y combate -> jefe -> portal -> fin.
+/// - HUD con cruceta, vida, almas, poderes y guardado automatico.
 /// </summary>
 public class GestorAventura : MonoBehaviour
 {
     public static GestorAventura Instancia;
     public Jugador Bjorn { get; private set; }
 
-    static readonly Vector3 InicioJugador = new Vector3(-6f, 1.5f, 0f);
+    static readonly Vector3 InicioJugador = new Vector3(-6f, 1.2f, 0f);
     int metaEnemigos;
 
     Transform portal;
@@ -34,7 +33,6 @@ public class GestorAventura : MonoBehaviour
     AudioClip sfxEspada, sfxImpacto, sfxHerido, sfxFanfarria, sfxAlmas, sfxTrueno;
     Texture2D texBlanca;
     GUIStyle estiloCentro, estiloHud;
-    Camara2D camara;
 
     void Awake() { Instancia = this; }
 
@@ -58,26 +56,39 @@ public class GestorAventura : MonoBehaviour
         texBlanca.SetPixel(0, 0, Color.white);
         texBlanca.Apply();
 
-        ConstruirNivel();
+        ConstruirMundo();
         almas = PlayerPrefs.GetInt("almas", 0);
         StartCoroutine(Intro());
     }
 
     // ============================================================
-    //  CONSTRUCCION DEL NIVEL 2.5D
+    //  CONSTRUCCION DEL MUNDO 3D
     // ============================================================
-    void ConstruirNivel()
+    Transform CuboFisico(string nombre, Vector3 pos, Vector3 tam, Color color, bool visible = true)
     {
-        // ---- Camara en perspectiva + ambiente ----
+        GameObject go = GameObject.CreatePrimitive(PrimitiveType.Cube); // conserva su collider 3D
+        go.name = nombre;
+        go.transform.position = pos;
+        go.transform.localScale = tam;
+        go.GetComponent<MeshRenderer>().sharedMaterial = ConstructorPersonaje.Mat(color);
+        go.GetComponent<MeshRenderer>().enabled = visible;
+        return go.transform;
+    }
+
+    void ConstruirMundo()
+    {
+        // ---- Ambiente ----
         Camera cam = Camera.main;
+        cam.fieldOfView = 70f;
+        cam.nearClipPlane = 0.05f;
+        cam.farClipPlane = 300f;
         cam.clearFlags = CameraClearFlags.SolidColor;
-        cam.backgroundColor = new Color(0.06f, 0.07f, 0.19f); // noche polar profunda
-        camara = cam.gameObject.AddComponent<Camara2D>();
+        cam.backgroundColor = new Color(0.06f, 0.07f, 0.19f);
 
         RenderSettings.fog = true;
         RenderSettings.fogMode = FogMode.Exponential;
         RenderSettings.fogColor = new Color(0.10f, 0.12f, 0.25f);
-        RenderSettings.fogDensity = 0.008f;
+        RenderSettings.fogDensity = 0.015f;
         RenderSettings.ambientLight = new Color(0.34f, 0.37f, 0.50f);
 
         Light sol = FindObjectOfType<Light>();
@@ -85,132 +96,128 @@ public class GestorAventura : MonoBehaviour
         {
             sol.type = LightType.Directional;
             sol.color = new Color(0.82f, 0.86f, 1f);
-            sol.intensity = 1.05f;
+            sol.intensity = 1.0f;
             sol.transform.rotation = Quaternion.Euler(45f, -35f, 0f);
             sol.shadows = LightShadows.Soft;
         }
 
-        // ---- Jugador ----
+        // ---- Jugador (la camara se vuelve sus ojos en su Awake) ----
         GameObject bjornGO = new GameObject("Bjorn");
         bjornGO.transform.position = InicioJugador;
         Bjorn = bjornGO.AddComponent<Jugador>();
-        camara.objetivo = bjornGO.transform;
 
-        // ---- Fondo lejano: aurora boreal (profundidad real) ----
+        // ---- Suelo nevado y muros invisibles ----
+        CuboFisico("Suelo", new Vector3(55f, -1f, 0f), new Vector3(170f, 2f, 80f), new Color(0.80f, 0.85f, 0.93f));
+        CuboFisico("MuroOeste", new Vector3(-14f, 4f, 0f), new Vector3(1f, 12f, 80f), Color.clear, false);
+        CuboFisico("MuroEste", new Vector3(124f, 4f, 0f), new Vector3(1f, 12f, 80f), Color.clear, false);
+        CuboFisico("MuroNorte", new Vector3(55f, 4f, 40f), new Vector3(170f, 12f, 1f), Color.clear, false);
+        CuboFisico("MuroSur", new Vector3(55f, 4f, -40f), new Vector3(170f, 12f, 1f), Color.clear, false);
+
+        // ---- Cielo: aurora boreal y luna ----
         Color[] coloresAurora =
         {
-            new Color(0.15f, 0.9f, 0.55f, 0.35f),
-            new Color(0.3f, 0.75f, 1f, 0.30f),
-            new Color(0.7f, 0.4f, 1f, 0.28f)
+            new Color(0.15f, 0.9f, 0.55f, 0.30f),
+            new Color(0.3f, 0.75f, 1f, 0.26f),
+            new Color(0.7f, 0.4f, 1f, 0.24f)
         };
         for (int i = 0; i < 3; i++)
         {
             Transform banda = ConstructorPersonaje.Rect(null, "Aurora_" + i,
-                Vector2.zero, new Vector2(320f, 5f), coloresAurora[i], 0, 0.5f, true);
-            banda.position = new Vector3(55f, 26f + i * 5f, 70f);
-            banda.rotation = Quaternion.Euler(0f, 0f, -3f + i * 3f);
+                Vector2.zero, new Vector2(400f, 7f), coloresAurora[i], 0, 1f, true);
+            banda.position = new Vector3(55f, 42f + i * 7f, 120f);
+            banda.rotation = Quaternion.Euler(12f, 0f, -3f + i * 3f);
         }
+        Transform halo = ConstructorPersonaje.Circ(null, "HaloLuna", Vector2.zero, 16f, new Color(0.9f, 0.95f, 1f, 0.18f), 0, true);
+        halo.position = new Vector3(20f, 40f, 110f);
+        Transform luna = ConstructorPersonaje.Circ(null, "Luna", Vector2.zero, 10f, new Color(0.95f, 0.97f, 1f), 0, true);
+        luna.position = new Vector3(20f, 40f, 110f);
 
-        // ---- Luna brillante con halo ----
-        Transform halo = ConstructorPersonaje.Circ(null, "HaloLuna", Vector2.zero, 11f, new Color(0.9f, 0.95f, 1f, 0.18f), 0, true);
-        halo.position = new Vector3(25f, 26f, 60f);
-        Transform luna = ConstructorPersonaje.Circ(null, "Luna", Vector2.zero, 7f, new Color(0.95f, 0.97f, 1f), 0, true);
-        luna.position = new Vector3(25f, 26f, 60f);
-
-        // ---- Montanas: dos cordilleras a distinta profundidad ----
-        for (int i = 0; i < 8; i++)
+        // ---- Cordillera alrededor del campo ----
+        for (int i = 0; i < 14; i++)
         {
-            Transform m = ConstructorPersonaje.Rect(null, "MontanaLejos_" + i,
-                Vector2.zero, new Vector2(34f, 34f), new Color(0.15f, 0.19f, 0.37f), 0, 4f);
-            m.position = new Vector3(-15f + i * 26f, -2f, 42f);
-            m.rotation = Quaternion.Euler(0f, 0f, 45f);
-        }
-        for (int i = 0; i < 10; i++)
-        {
-            Transform m = ConstructorPersonaje.Rect(null, "MontanaCerca_" + i,
-                Vector2.zero, new Vector2(18f, 18f), new Color(0.23f, 0.29f, 0.51f), 0, 3f);
-            m.position = new Vector3(-16f + i * 17f, -3f, 22f);
-            m.rotation = Quaternion.Euler(0f, 0f, 45f);
-            ConstructorPersonaje.Rect(m, "Nieve", new Vector2(0.30f, 0.30f), new Vector2(0.42f, 0.42f), new Color(0.75f, 0.82f, 0.95f), 1, 1.05f);
+            float x = -20f + i * 12f;
+            Transform m1 = ConstructorPersonaje.Rect(null, "MontanaN_" + i, Vector2.zero, new Vector2(26f, 26f), new Color(0.18f, 0.23f, 0.42f), 0, 6f);
+            m1.position = new Vector3(x, -4f, 60f + (i % 3) * 8f);
+            m1.rotation = Quaternion.Euler(0f, 0f, 45f);
+            Transform m2 = ConstructorPersonaje.Rect(null, "MontanaS_" + i, Vector2.zero, new Vector2(22f, 22f), new Color(0.15f, 0.19f, 0.37f), 0, 6f);
+            m2.position = new Vector3(x, -4f, -58f - (i % 2) * 8f);
+            m2.rotation = Quaternion.Euler(0f, 0f, 45f);
         }
 
-        // ---- Suelo 3D: tierra con manto de nieve (fisica 2D intacta) ----
-        Transform suelo = ConstructorPersonaje.Rect(null, "Suelo", new Vector2(57f, -1.6f), new Vector2(160f, 3.2f), new Color(0.30f, 0.24f, 0.30f), 0, 8f);
-        suelo.gameObject.AddComponent<BoxCollider2D>();
-        ConstructorPersonaje.Rect(null, "NieveSuelo", new Vector2(57f, -0.20f), new Vector2(160f, 0.5f), new Color(0.87f, 0.91f, 0.98f), 0, 7.8f);
-
-        // ---- Muros invisibles ----
-        Transform muroIzq = ConstructorPersonaje.Rect(null, "MuroIzq", new Vector2(-13.5f, 4f), new Vector2(1f, 14f), new Color(0f, 0f, 0f, 0f), 0);
-        muroIzq.gameObject.AddComponent<BoxCollider2D>();
-        Transform muroDer = ConstructorPersonaje.Rect(null, "MuroDer", new Vector2(126f, 4f), new Vector2(1f, 14f), new Color(0f, 0f, 0f, 0f), 0);
-        muroDer.gameObject.AddComponent<BoxCollider2D>();
-
-        // ---- Plataformas flotantes de piedra ----
-        float[,] plataformas = { {18f, 2.2f}, {26f, 3.4f}, {40f, 2.5f}, {55f, 3.3f}, {68f, 2.3f}, {90f, 3f} };
-        for (int i = 0; i < plataformas.GetLength(0); i++)
-        {
-            Transform p = ConstructorPersonaje.Rect(null, "Plataforma_" + i,
-                new Vector2(plataformas[i, 0], plataformas[i, 1]), new Vector2(3.6f, 0.5f), new Color(0.42f, 0.46f, 0.58f), 0, 2.4f);
-            p.gameObject.AddComponent<BoxCollider2D>();
-            ConstructorPersonaje.Rect(p, "NievePlat", new Vector2(0f, 0.42f), new Vector2(1f, 0.28f), new Color(0.87f, 0.91f, 0.98f), 0, 0.95f);
-        }
-
-        // ---- Pilares runicos con runas que brillan ----
-        float[] pilares = { 5f, 24f, 47f, 65f, 82f, 105f };
+        // ---- Pilares runicos a ambos lados del camino ----
+        float[] pilaresX = { 5f, 24f, 47f, 65f, 82f, 105f };
         Color[] coloresRuna = { new Color(0.3f, 0.9f, 1f), new Color(0.4f, 1f, 0.6f), new Color(0.8f, 0.5f, 1f) };
-        for (int i = 0; i < pilares.Length; i++)
+        for (int i = 0; i < pilaresX.Length; i++)
         {
-            Transform pilar = ConstructorPersonaje.Rect(null, "Pilar_" + i, Vector2.zero, new Vector2(0.9f, 3.6f), new Color(0.33f, 0.36f, 0.46f), 0, 0.9f);
-            pilar.position = new Vector3(pilares[i], 1.6f, 2.5f); // un paso detras del carril de juego
+            float z = (i % 2 == 0) ? 7f : -7f;
+            Transform pilar = CuboFisico("Pilar_" + i, new Vector3(pilaresX[i], 1.8f, z), new Vector3(1f, 3.6f, 1f), new Color(0.33f, 0.36f, 0.46f));
             Color runa = coloresRuna[i % coloresRuna.Length];
-            ConstructorPersonaje.Rect(pilar, "Runa1", new Vector2(0f, 0.22f), new Vector2(0.30f, 0.10f), runa, 1, 0.15f, true);
-            ConstructorPersonaje.Rect(pilar, "Runa2", new Vector2(0f, 0.05f), new Vector2(0.10f, 0.28f), runa, 1, 0.15f, true);
+            Transform r1 = ConstructorPersonaje.Rect(pilar, "Runa1", new Vector2(0f, 0.22f), new Vector2(0.32f, 0.1f), runa, 0, 0.1f, true);
+            r1.localPosition = new Vector3(0f, 0.22f, -0.51f);
+            Transform r2 = ConstructorPersonaje.Rect(pilar, "Runa2", new Vector2(0f, 0.05f), new Vector2(0.1f, 0.3f), runa, 0, 0.1f, true);
+            r2.localPosition = new Vector3(0f, 0.05f, -0.51f);
+            Light luzRuna = pilar.gameObject.AddComponent<Light>();
+            luzRuna.type = LightType.Point;
+            luzRuna.color = runa;
+            luzRuna.range = 6f;
+            luzRuna.intensity = 1.6f;
         }
 
-        // ---- Arboles nevados (detras del carril) ----
-        float[] arboles = { 11f, 33f, 59f, 76f, 96f };
-        foreach (float x in arboles)
+        // ---- Arboles nevados y rocas dispersas ----
+        float[,] arboles = { {11,14}, {33,-12}, {45,16}, {59,-15}, {76,12}, {96,-10}, {30,22}, {70,20} };
+        for (int i = 0; i < arboles.GetLength(0); i++)
         {
-            Transform tronco = ConstructorPersonaje.Rect(null, "Arbol", Vector2.zero, new Vector2(0.35f, 2.2f), new Color(0.35f, 0.25f, 0.2f), 0, 0.4f);
-            tronco.position = new Vector3(x, 1.1f, 4f);
+            Transform tronco = CuboFisico("Arbol_" + i, new Vector3(arboles[i, 0], 1.1f, arboles[i, 1]), new Vector3(0.4f, 2.2f, 0.4f), new Color(0.35f, 0.25f, 0.2f));
             for (int j = 0; j < 3; j++)
             {
-                Transform copa = ConstructorPersonaje.Rect(tronco, "Copa_" + j, new Vector2(0f, 0.55f + j * 0.35f), new Vector2(4.6f - j * 1.2f, 1.6f), new Color(0.16f, 0.38f, 0.30f), 0, 3f - j * 0.7f);
+                Transform copa = ConstructorPersonaje.Rect(tronco, "Copa_" + j, new Vector2(0f, 0.55f + j * 0.35f), new Vector2(4.6f - j * 1.2f, 1.6f), new Color(0.16f, 0.38f, 0.30f), 0, 4.6f - j * 1.2f);
                 copa.localRotation = Quaternion.Euler(0f, 0f, 45f);
-                ConstructorPersonaje.Rect(copa, "NieveCopa", new Vector2(0.3f, 0.3f), new Vector2(0.4f, 0.4f), new Color(0.87f, 0.91f, 0.98f), 1, 0.9f);
             }
         }
+        float[,] rocas = { {16,-6}, {38,8}, {52,-9}, {74,6}, {88,-14}, {100,9}, {60,18}, {25,-18} };
+        for (int i = 0; i < rocas.GetLength(0); i++)
+        {
+            Transform roca = CuboFisico("Roca_" + i, new Vector3(rocas[i, 0], 0.4f, rocas[i, 1]),
+                new Vector3(1.3f + (i % 3) * 0.5f, 0.8f + (i % 2) * 0.6f, 1.2f), new Color(0.42f, 0.46f, 0.52f));
+            roca.rotation = Quaternion.Euler(0f, i * 37f, 0f);
+        }
+
+        // ---- Altares de piedra (para saltar y alcanzar premios) ----
+        float[,] altares = { {18,4}, {26,-5}, {40,6}, {55,0}, {68,-6}, {90,5} };
+        for (int i = 0; i < altares.GetLength(0); i++)
+            CuboFisico("Altar_" + i, new Vector3(altares[i, 0], 0.45f, altares[i, 1]), new Vector3(3f, 0.9f, 3f), new Color(0.45f, 0.49f, 0.60f));
 
         // ---- PREMIOS ----
-        float[,] posAlmas = { {10,0.7f}, {14,0.7f}, {18,3.2f}, {26,4.4f}, {33,0.7f}, {40,3.5f}, {47,0.7f}, {52,0.7f},
-                              {63,0.7f}, {68,3.3f}, {76,0.7f}, {90,4f}, {95,0.7f}, {106,0.7f} };
+        float[,] posAlmas = { {10,1,0}, {14,1,-3}, {18,2.1f,4}, {26,2.1f,-5}, {33,1,3}, {40,2.1f,6}, {47,1,-2}, {52,1,2},
+                              {63,1,-4}, {68,2.1f,-6}, {76,1,3}, {90,2.1f,5}, {95,1,-2}, {106,1,0} };
         for (int i = 0; i < posAlmas.GetLength(0); i++)
-            Recompensa.Crear(Recompensa.Tipo.Almas, new Vector2(posAlmas[i, 0], posAlmas[i, 1]));
+            Recompensa.Crear(Recompensa.Tipo.Almas, new Vector3(posAlmas[i, 0], posAlmas[i, 1], posAlmas[i, 2]));
 
-        Recompensa.Crear(Recompensa.Tipo.Pocion, new Vector2(35f, 0.8f));
-        Recompensa.Crear(Recompensa.Tipo.Pocion, new Vector2(80f, 0.8f));
-        Recompensa.Crear(Recompensa.Tipo.RunaTrueno, new Vector2(55f, 4.3f));
+        Recompensa.Crear(Recompensa.Tipo.Pocion, new Vector3(35f, 1f, -6f));
+        Recompensa.Crear(Recompensa.Tipo.Pocion, new Vector3(80f, 1f, 8f));
+        Recompensa.Crear(Recompensa.Tipo.RunaTrueno, new Vector3(55f, 2.2f, 0f)); // sobre el altar central
 
-        // ---- ENEMIGOS: 6 draugr + jefe guardian ----
-        float[] draugr = { 20f, 30f, 42f, 60f, 72f, 85f };
-        foreach (float x in draugr)
+        // ---- ENEMIGOS ----
+        float[,] draugr = { {20,3}, {30,-4}, {42,5}, {60,-5}, {72,4}, {85,-3} };
+        for (int i = 0; i < draugr.GetLength(0); i++)
         {
-            GameObject e = new GameObject("Draugr");
-            e.transform.position = new Vector3(x, 0f, 0f);
+            GameObject e = new GameObject("Draugr_" + i);
+            e.transform.position = new Vector3(draugr[i, 0], 0f, draugr[i, 1]);
             e.AddComponent<Enemigo>().Inicializar(Bjorn, false);
         }
         GameObject jefe = new GameObject("JefeGuardian");
         jefe.transform.position = new Vector3(101f, 0f, 0f);
         jefe.AddComponent<Enemigo>().Inicializar(Bjorn, true);
-        metaEnemigos = draugr.Length + 1;
+        metaEnemigos = draugr.GetLength(0) + 1;
 
         // ---- PORTAL ----
         portal = new GameObject("Portal").transform;
-        portal.position = new Vector3(113f, 0f, 0.6f);
-        ConstructorPersonaje.Rect(portal, "PilarIzq", new Vector2(-1.5f, 2.2f), new Vector2(0.8f, 4.4f), new Color(0.33f, 0.36f, 0.46f), 0, 0.8f);
-        ConstructorPersonaje.Rect(portal, "PilarDer", new Vector2(1.5f, 2.2f), new Vector2(0.8f, 4.4f), new Color(0.33f, 0.36f, 0.46f), 0, 0.8f);
-        ConstructorPersonaje.Rect(portal, "Dintel", new Vector2(0f, 4.6f), new Vector2(4.2f, 0.7f), new Color(0.33f, 0.36f, 0.46f), 0, 0.8f);
-        Transform puerta = ConstructorPersonaje.Rect(portal, "Puerta", new Vector2(0f, 2.2f), new Vector2(2.3f, 4f), new Color(0.05f, 0.06f, 0.1f), 0, 0.3f);
+        portal.position = new Vector3(113f, 0f, 0f);
+        CuboFisico("PilarIzq", portal.position + new Vector3(0f, 2.2f, -1.8f), new Vector3(0.9f, 4.4f, 0.9f), new Color(0.33f, 0.36f, 0.46f)).SetParent(portal);
+        CuboFisico("PilarDer", portal.position + new Vector3(0f, 2.2f, 1.8f), new Vector3(0.9f, 4.4f, 0.9f), new Color(0.33f, 0.36f, 0.46f)).SetParent(portal);
+        CuboFisico("Dintel", portal.position + new Vector3(0f, 4.6f, 0f), new Vector3(0.9f, 0.7f, 4.8f), new Color(0.33f, 0.36f, 0.46f)).SetParent(portal);
+        Transform puerta = ConstructorPersonaje.Rect(portal, "Puerta", Vector2.zero, new Vector2(0.3f, 4f), new Color(0.05f, 0.06f, 0.1f), 0, 2.8f);
+        puerta.position = portal.position + new Vector3(0f, 2.2f, 0f);
         puertaMR = puerta.GetComponent<MeshRenderer>();
         puertaMR.material = new Material(Shader.Find("Standard"));
         puertaMR.material.color = new Color(0.05f, 0.06f, 0.1f);
@@ -219,15 +226,15 @@ public class GestorAventura : MonoBehaviour
 
         luzPortal = new GameObject("LuzPortal").AddComponent<Light>();
         luzPortal.transform.SetParent(portal, false);
-        luzPortal.transform.localPosition = new Vector3(0f, 2.2f, -2f);
+        luzPortal.transform.localPosition = new Vector3(-2f, 2.2f, 0f);
         luzPortal.type = LightType.Point;
         luzPortal.color = new Color(0.4f, 0.9f, 1f);
-        luzPortal.range = 16f;
+        luzPortal.range = 18f;
         luzPortal.intensity = 0f;
 
-        // ---- Nieve con profundidad ----
-        var nieve = new GameObject("Nieve").AddComponent<Nieve2D>();
-        nieve.camara = cam.transform;
+        // ---- Nieve que te sigue ----
+        var nieve = new GameObject("Nieve").AddComponent<Nieve>();
+        nieve.centro = bjornGO.transform;
     }
 
     // ============================================================
@@ -235,6 +242,7 @@ public class GestorAventura : MonoBehaviour
     // ============================================================
     IEnumerator Intro()
     {
+        Cursor.lockState = CursorLockMode.None;
         Bjorn.controlActivo = false;
         mensajeCentral = "CAMINO AL VALHALLA\n\nCAPITULO 1: EL CAMPO DE LOS CAIDOS" +
                          (almas > 0 ? "\n\nPartida cargada - Almas: " + almas : "") +
@@ -250,6 +258,7 @@ public class GestorAventura : MonoBehaviour
         Voz("av_objetivo");
         estado = Estado.Jugando;
         Bjorn.controlActivo = true;
+        Cursor.lockState = CursorLockMode.Locked;
     }
 
     IEnumerator EsperarClic()
@@ -351,7 +360,14 @@ public class GestorAventura : MonoBehaviour
     {
         musicaSrc.volume = vozSrc.isPlaying ? 0.12f : 0.3f;
 
-        // la puerta del portal palpita con luz cian cuando esta activa
+        // ESC libera el raton; clic lo captura de nuevo
+        if (Input.GetKeyDown(KeyCode.Escape))
+            Cursor.lockState = CursorLockMode.None;
+        if (estado == Estado.Jugando && Input.GetMouseButtonDown(0) &&
+            Cursor.lockState != CursorLockMode.Locked)
+            Cursor.lockState = CursorLockMode.Locked;
+
+        // portal palpitante
         if (portalActivo && puertaMR != null)
         {
             float t = (Mathf.Sin(Time.time * 5f) + 1f) * 0.5f;
@@ -363,8 +379,9 @@ public class GestorAventura : MonoBehaviour
 
         if (estado == Estado.Jugando && portalActivo)
         {
-            float d = Mathf.Abs(Bjorn.transform.position.x - portal.position.x);
-            if (d < 1.4f)
+            Vector3 d = Bjorn.transform.position - portal.position;
+            d.y = 0f;
+            if (d.magnitude < 2.2f)
                 StartCoroutine(FinCapitulo());
         }
     }
@@ -373,6 +390,7 @@ public class GestorAventura : MonoBehaviour
     {
         estado = Estado.Fin;
         Bjorn.controlActivo = false;
+        Cursor.lockState = CursorLockMode.None;
         PlayerPrefs.SetInt("capitulo1", 1);
         Guardar();
         sfxSrc.PlayOneShot(sfxFanfarria);
@@ -399,6 +417,14 @@ public class GestorAventura : MonoBehaviour
 
         if (estado == Estado.Jugando && Bjorn != null)
         {
+            // cruceta de mira
+            float cx = Screen.width / 2f, cy = Screen.height / 2f;
+            GUI.color = new Color(1f, 1f, 1f, 0.8f);
+            GUI.DrawTexture(new Rect(cx - 8, cy - 1, 16, 2), texBlanca);
+            GUI.DrawTexture(new Rect(cx - 1, cy - 8, 2, 16), texBlanca);
+            GUI.color = Color.white;
+
+            // barra de vida
             GUI.color = new Color(0f, 0f, 0f, 0.6f);
             GUI.DrawTexture(new Rect(18, 18, 304, 30), texBlanca);
             GUI.color = new Color(0.85f, 0.2f, 0.15f);
@@ -420,8 +446,8 @@ public class GestorAventura : MonoBehaviour
                          Bjorn.poderRayo ? 1f - Mathf.Clamp01(Bjorn.cdRayoRestante / Bjorn.cooldownRayo) : 0f,
                          Bjorn.poderRayo);
 
-            GUI.Label(new Rect(20, Screen.height - 32, 800, 30),
-                      "A/D: correr  |  ESPACIO: saltar  |  Clic/J: espada  |  SHIFT: dash  |  Q: poder",
+            GUI.Label(new Rect(20, Screen.height - 32, 900, 30),
+                      "WASD: moverse  |  Raton: mirar  |  Clic: espada  |  ESPACIO: saltar  |  SHIFT: dash  |  Q: poder  |  ESC: liberar raton",
                       estiloHud);
 
             if (Time.time < avisoGuardadoHasta)
