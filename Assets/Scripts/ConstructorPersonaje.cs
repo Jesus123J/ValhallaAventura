@@ -2,15 +2,15 @@ using UnityEngine;
 using System.Collections.Generic;
 
 /// <summary>
-/// Construccion 2.5D: el juego se juega en un plano lateral (X/Y) pero TODO
-/// se dibuja con geometria 3D real (cubos y esferas con luz y sombra).
-/// El parametro "orden" (antes orden de sprite) ahora se convierte en una
-/// pequena separacion en Z: mayor orden = mas cerca de la camara.
+/// Fabrica de geometria y personajes voxel.
+/// Los DRAUGR ahora tienen cuerpo completo: torso en dos piezas, hombreras,
+/// brazos con antebrazo y garras, piernas con espinilla y pies, capa rota,
+/// mandibula y dos ojos rojos brillantes, con postura encorvada.
 /// </summary>
 public static class ConstructorPersonaje
 {
-    const float PasoZ = 0.12f;          // separacion entre "capas"
-    const float ProfundidadBase = 0.24f; // grosor por defecto de cada pieza
+    const float PasoZ = 0.12f;
+    const float ProfundidadBase = 0.24f;
 
     static readonly Dictionary<Color, Material> materiales = new Dictionary<Color, Material>();
     static readonly Dictionary<Color, Material> materialesEmisivos = new Dictionary<Color, Material>();
@@ -27,7 +27,6 @@ public static class ConstructorPersonaje
         return m;
     }
 
-    /// <summary>Material que brilla por si mismo (runas, portal, rayos, luna).</summary>
     public static Material MatEmisivo(Color c)
     {
         if (!materialesEmisivos.TryGetValue(c, out Material m))
@@ -44,7 +43,7 @@ public static class ConstructorPersonaje
 
     static void HacerTransparente(Material m)
     {
-        m.SetFloat("_Mode", 3f); // Transparent
+        m.SetFloat("_Mode", 3f);
         m.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
         m.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
         m.SetInt("_ZWrite", 0);
@@ -53,23 +52,21 @@ public static class ConstructorPersonaje
         m.renderQueue = 3000;
     }
 
-    /// <summary>Crea un CUBO 3D (antes era un rectangulo 2D). Misma firma + profundidad opcional.</summary>
     public static Transform Rect(Transform padre, string nombre, Vector2 pos, Vector2 tam, Color color,
                                  int orden, float profundidad = ProfundidadBase, bool emisivo = false)
     {
         GameObject go = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        Object.DestroyImmediate(go.GetComponent<BoxCollider>()); // solo visual
+        Object.DestroyImmediate(go.GetComponent<BoxCollider>());
         go.name = nombre;
         go.transform.SetParent(padre, false);
         go.transform.localPosition = new Vector3(pos.x, pos.y, -orden * PasoZ);
         go.transform.localScale = new Vector3(tam.x, tam.y, profundidad);
         var mr = go.GetComponent<MeshRenderer>();
         mr.sharedMaterial = emisivo ? MatEmisivo(color) : Mat(color);
-        if (color.a <= 0.001f) mr.enabled = false; // muros invisibles
+        if (color.a <= 0.001f) mr.enabled = false;
         return go.transform;
     }
 
-    /// <summary>Crea una ESFERA 3D achatada (halos, luna, brillos).</summary>
     public static Transform Circ(Transform padre, string nombre, Vector2 pos, float diametro, Color color,
                                  int orden, bool emisivo = false)
     {
@@ -84,76 +81,132 @@ public static class ConstructorPersonaje
         return go.transform;
     }
 
-    /// <summary>Construye el titere voxel completo y devuelve su animador configurado.</summary>
+    /// <summary>Cubo 3D con posicion y tamano completos (x,y,z). Para armar cuerpos.</summary>
+    public static Transform Cubo(Transform padre, string nombre, Vector3 pos, Vector3 tam, Color color, bool emisivo = false)
+    {
+        GameObject go = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        Object.DestroyImmediate(go.GetComponent<BoxCollider>());
+        go.name = nombre;
+        go.transform.SetParent(padre, false);
+        go.transform.localPosition = pos;
+        go.transform.localScale = tam;
+        go.GetComponent<MeshRenderer>().sharedMaterial = emisivo ? MatEmisivo(color) : Mat(color);
+        return go.transform;
+    }
+
+    /// <summary>Construye el cuerpo voxel completo y devuelve su animador.</summary>
     public static AnimadorPersonaje CrearVisual(Transform raiz, bool esDraugr)
     {
-        Color piel   = esDraugr ? new Color(0.55f, 0.68f, 0.50f) : new Color(0.95f, 0.78f, 0.62f);
-        Color ropa   = esDraugr ? new Color(0.22f, 0.25f, 0.22f) : new Color(0.20f, 0.35f, 0.65f);
-        Color pelo   = esDraugr ? new Color(0.80f, 0.86f, 0.90f) : new Color(0.85f, 0.40f, 0.12f);
-        Color pierna = esDraugr ? new Color(0.16f, 0.18f, 0.16f) : new Color(0.35f, 0.25f, 0.16f);
-        Color metal  = esDraugr ? new Color(0.55f, 0.50f, 0.38f) : new Color(0.85f, 0.88f, 0.95f);
-        Color cuero  = new Color(0.35f, 0.25f, 0.15f);
-        Color hueso  = new Color(0.95f, 0.93f, 0.85f);
+        Color piel    = esDraugr ? new Color(0.52f, 0.64f, 0.48f) : new Color(0.95f, 0.78f, 0.62f);
+        Color pielOsc = piel * 0.82f;
+        Color ropa    = esDraugr ? new Color(0.20f, 0.23f, 0.20f) : new Color(0.20f, 0.35f, 0.65f);
+        Color ropaOsc = ropa * 0.75f;
+        Color pierna  = esDraugr ? new Color(0.15f, 0.17f, 0.15f) : new Color(0.35f, 0.25f, 0.16f);
+        Color metal   = esDraugr ? new Color(0.5f, 0.46f, 0.36f) : new Color(0.8f, 0.83f, 0.9f);
+        Color cuero   = new Color(0.35f, 0.25f, 0.15f);
+        Color hueso   = new Color(0.93f, 0.91f, 0.83f);
+        Color pelo    = esDraugr ? new Color(0.78f, 0.84f, 0.88f) : new Color(0.85f, 0.40f, 0.12f);
 
         Transform visual = new GameObject("Visual").transform;
         visual.SetParent(raiz, false);
 
-        // ---- Brazo de atras ----
-        Transform brazoAtras = new GameObject("BrazoAtras").transform;
-        brazoAtras.SetParent(visual, false);
-        brazoAtras.localPosition = new Vector3(-0.06f, 1.38f, 0f);
-        Rect(brazoAtras, "Brazo", new Vector2(0f, -0.30f), new Vector2(0.17f, 0.55f), piel * 0.85f, 1);
+        // postura: los draugr van encorvados hacia adelante
+        Transform postura = new GameObject("Postura").transform;
+        postura.SetParent(visual, false);
+        if (esDraugr) postura.localRotation = Quaternion.Euler(10f, 0f, 0f);
 
-        // ---- Piernas ----
-        Transform piernaAtras = new GameObject("PiernaAtras").transform;
-        piernaAtras.SetParent(visual, false);
-        piernaAtras.localPosition = new Vector3(-0.08f, 0.80f, 0f);
-        Rect(piernaAtras, "Pierna", new Vector2(0f, -0.36f), new Vector2(0.22f, 0.72f), pierna * 0.8f, 2);
+        // ================= PIERNAS (muslo + espinilla + pie) =================
+        Transform piernaIzq = CrearPierna(postura, "PiernaIzq", -0.15f, pierna, pielOsc, esDraugr);
+        Transform piernaDer = CrearPierna(postura, "PiernaDer", 0.15f, pierna, pielOsc, esDraugr);
 
-        Transform piernaFrente = new GameObject("PiernaFrente").transform;
-        piernaFrente.SetParent(visual, false);
-        piernaFrente.localPosition = new Vector3(0.10f, 0.80f, 0f);
-        Rect(piernaFrente, "Pierna", new Vector2(0f, -0.36f), new Vector2(0.22f, 0.72f), pierna, 3);
-
-        // ---- Torso, cinturon, cabeza ----
-        Rect(visual, "Torso", new Vector2(0f, 1.10f), new Vector2(0.60f, 0.82f), ropa, 4, 0.34f);
-        Rect(visual, "Cinturon", new Vector2(0f, 0.80f), new Vector2(0.62f, 0.14f), cuero, 5, 0.36f);
-        Rect(visual, "Cabeza", new Vector2(0.02f, 1.78f), new Vector2(0.48f, 0.46f), piel, 5, 0.4f);
+        // ================= TORSO en dos piezas =================
+        Cubo(postura, "Abdomen", new Vector3(0f, 1.0f, 0f), new Vector3(0.46f, 0.32f, 0.32f), ropaOsc);
+        Cubo(postura, "Pecho", new Vector3(0f, 1.32f, 0f), new Vector3(0.62f, 0.42f, 0.40f), ropa);
+        Cubo(postura, "Cinturon", new Vector3(0f, 0.84f, 0f), new Vector3(0.5f, 0.1f, 0.36f), cuero);
+        // hombreras
+        Cubo(postura, "HombreraIzq", new Vector3(-0.40f, 1.5f, 0f), new Vector3(0.24f, 0.15f, 0.32f), esDraugr ? cuero : metal);
+        Cubo(postura, "HombreraDer", new Vector3(0.40f, 1.5f, 0f), new Vector3(0.24f, 0.15f, 0.32f), esDraugr ? cuero : metal);
 
         if (esDraugr)
         {
-            Circ(visual, "OjoBrillo", new Vector2(0.15f, 1.82f), 0.30f, new Color(1f, 0.2f, 0.1f, 0.35f), 5);
-            Rect(visual, "Ojo", new Vector2(0.15f, 1.82f), new Vector2(0.14f, 0.10f), new Color(1f, 0.25f, 0.1f), 6, 0.1f, true);
-            Rect(visual, "Harapo", new Vector2(0f, 1.52f), new Vector2(0.66f, 0.16f), new Color(0.30f, 0.28f, 0.22f), 5, 0.42f);
+            // capa rota a la espalda
+            Cubo(postura, "Capa", new Vector3(0f, 1.15f, -0.26f), new Vector3(0.55f, 0.8f, 0.05f), new Color(0.16f, 0.14f, 0.12f));
+            Cubo(postura, "CapaRota", new Vector3(-0.15f, 0.68f, -0.26f), new Vector3(0.2f, 0.22f, 0.05f), new Color(0.16f, 0.14f, 0.12f));
+        }
+
+        // ================= CABEZA =================
+        Cubo(postura, "Cuello", new Vector3(0f, 1.58f, 0f), new Vector3(0.16f, 0.1f, 0.16f), piel);
+        Transform cabeza = Cubo(postura, "Cabeza", new Vector3(0f, 1.85f, 0f), new Vector3(0.42f, 0.4f, 0.42f), piel);
+
+        if (esDraugr)
+        {
+            // dos ojos rojos brillantes
+            Cubo(cabeza, "OjoIzq", new Vector3(-0.24f, 0.1f, 0.52f), new Vector3(0.28f, 0.2f, 0.1f), new Color(1f, 0.25f, 0.1f), true);
+            Cubo(cabeza, "OjoDer", new Vector3(0.24f, 0.1f, 0.52f), new Vector3(0.28f, 0.2f, 0.1f), new Color(1f, 0.25f, 0.1f), true);
+            Cubo(cabeza, "Mandibula", new Vector3(0f, -0.42f, 0.15f), new Vector3(0.8f, 0.22f, 0.75f), pielOsc);
+            Cubo(cabeza, "PeloColgante", new Vector3(0f, 0.1f, -0.5f), new Vector3(0.9f, 0.9f, 0.15f), pelo);
         }
         else
         {
-            Rect(visual, "Ojo", new Vector2(0.15f, 1.84f), new Vector2(0.09f, 0.09f), new Color(0.15f, 0.12f, 0.10f), 6, 0.1f);
-            Rect(visual, "Barba", new Vector2(0.14f, 1.60f), new Vector2(0.34f, 0.24f), pelo, 6, 0.3f);
-            Rect(visual, "Casco", new Vector2(0.02f, 2.02f), new Vector2(0.54f, 0.18f), metal, 6, 0.44f);
-            Rect(visual, "Cuerno", new Vector2(-0.28f, 2.14f), new Vector2(0.12f, 0.30f), hueso, 6, 0.12f);
+            Cubo(cabeza, "OjoIzq", new Vector3(-0.22f, 0.1f, 0.52f), new Vector3(0.18f, 0.16f, 0.1f), new Color(0.15f, 0.12f, 0.1f));
+            Cubo(cabeza, "OjoDer", new Vector3(0.22f, 0.1f, 0.52f), new Vector3(0.18f, 0.16f, 0.1f), new Color(0.15f, 0.12f, 0.1f));
+            Cubo(cabeza, "Nariz", new Vector3(0f, -0.1f, 0.55f), new Vector3(0.16f, 0.2f, 0.15f), pielOsc);
+            Cubo(cabeza, "Barba", new Vector3(0f, -0.45f, 0.3f), new Vector3(0.75f, 0.45f, 0.5f), pelo);
+            Cubo(cabeza, "Casco", new Vector3(0f, 0.42f, 0f), new Vector3(1.12f, 0.4f, 1.12f), metal);
+            Cubo(cabeza, "CuernoIzq", new Vector3(-0.68f, 0.65f, 0f), new Vector3(0.22f, 0.65f, 0.22f), hueso);
+            Cubo(cabeza, "CuernoDer", new Vector3(0.68f, 0.65f, 0f), new Vector3(0.22f, 0.65f, 0.22f), hueso);
         }
 
-        // ---- Brazo delantero con la ESPADA ----
-        Transform brazoFrente = new GameObject("BrazoFrente").transform;
-        brazoFrente.SetParent(visual, false);
-        brazoFrente.localPosition = new Vector3(0.10f, 1.38f, 0f);
-        Rect(brazoFrente, "Brazo", new Vector2(0f, -0.30f), new Vector2(0.18f, 0.60f), piel, 6);
-
-        Transform espada = new GameObject("Espada").transform;
-        espada.SetParent(brazoFrente, false);
-        espada.localPosition = new Vector3(0f, -0.62f, 0f);
-        Rect(espada, "Mango", new Vector2(0.10f, 0f), new Vector2(0.20f, 0.07f), cuero, 6, 0.1f);
-        Rect(espada, "Guarda", new Vector2(0.20f, 0f), new Vector2(0.06f, 0.28f), esDraugr ? cuero : new Color(0.9f, 0.75f, 0.2f), 7, 0.12f);
-        Rect(espada, "Hoja", new Vector2(0.62f, 0f), new Vector2(0.80f, 0.13f), metal, 7, 0.06f);
-        if (!esDraugr)
-            Rect(espada, "Brillo", new Vector2(0.62f, 0.03f), new Vector2(0.70f, 0.04f), new Color(1f, 1f, 1f, 0.8f), 8, 0.04f, true);
+        // ================= BRAZOS (brazo + antebrazo + mano/garra) =================
+        Transform brazoIzq = CrearBrazo(postura, "BrazoIzq", -0.46f, piel, pielOsc, ropa, esDraugr, false, metal, cuero);
+        Transform brazoDer = CrearBrazo(postura, "BrazoDer", 0.46f, piel, pielOsc, ropa, esDraugr, true, metal, cuero);
 
         AnimadorPersonaje anim = visual.gameObject.AddComponent<AnimadorPersonaje>();
-        anim.brazoDer = brazoFrente;
-        anim.brazoIzq = brazoAtras;
-        anim.piernaDer = piernaFrente;
-        anim.piernaIzq = piernaAtras;
+        anim.brazoDer = brazoDer;
+        anim.brazoIzq = brazoIzq;
+        anim.piernaDer = piernaDer;
+        anim.piernaIzq = piernaIzq;
         return anim;
+    }
+
+    static Transform CrearPierna(Transform padre, string nombre, float x, Color pantalon, Color pielOsc, bool esDraugr)
+    {
+        Transform pivote = new GameObject(nombre).transform;
+        pivote.SetParent(padre, false);
+        pivote.localPosition = new Vector3(x, 0.85f, 0f);
+        Cubo(pivote, "Muslo", new Vector3(0f, -0.22f, 0f), new Vector3(0.22f, 0.42f, 0.24f), pantalon);
+        Cubo(pivote, "Espinilla", new Vector3(0f, -0.6f, 0f), new Vector3(0.18f, 0.4f, 0.2f), pantalon * 0.85f);
+        Cubo(pivote, "Pie", new Vector3(0f, -0.82f, 0.06f), new Vector3(0.2f, 0.1f, 0.34f), esDraugr ? pielOsc : new Color(0.25f, 0.17f, 0.1f));
+        return pivote;
+    }
+
+    static Transform CrearBrazo(Transform padre, string nombre, float x, Color piel, Color pielOsc,
+                                Color ropa, bool esDraugr, bool derecho, Color metal, Color cuero)
+    {
+        Transform pivote = new GameObject(nombre).transform;
+        pivote.SetParent(padre, false);
+        pivote.localPosition = new Vector3(x, 1.48f, 0f);
+        Cubo(pivote, "Brazo", new Vector3(0f, -0.2f, 0f), new Vector3(0.17f, 0.38f, 0.2f), ropa);
+        Cubo(pivote, "Antebrazo", new Vector3(0f, -0.52f, 0f), new Vector3(0.15f, 0.32f, 0.17f), piel);
+        Transform mano = Cubo(pivote, "Mano", new Vector3(0f, -0.74f, 0f), new Vector3(0.16f, 0.14f, 0.18f), pielOsc);
+
+        if (esDraugr)
+        {
+            // garras hacia adelante
+            for (int g = 0; g < 3; g++)
+                Cubo(mano, "Garra_" + g, new Vector3(-0.25f + g * 0.25f, -0.55f, 0.3f), new Vector3(0.18f, 0.45f, 0.18f), new Color(0.85f, 0.83f, 0.75f));
+        }
+
+        if (derecho)
+        {
+            // espada en la mano derecha, hoja hacia adelante
+            Transform espada = new GameObject("Espada").transform;
+            espada.SetParent(pivote, false);
+            espada.localPosition = new Vector3(0f, -0.74f, 0.1f);
+            Cubo(espada, "Mango", new Vector3(0f, 0f, -0.12f), new Vector3(0.06f, 0.06f, 0.3f), cuero);
+            Cubo(espada, "Guarda", new Vector3(0f, 0f, 0.06f), new Vector3(0.26f, 0.06f, 0.06f), esDraugr ? cuero : new Color(0.9f, 0.75f, 0.2f));
+            Cubo(espada, "Hoja", new Vector3(0f, 0f, 0.5f), new Vector3(0.1f, 0.035f, 0.85f), metal);
+        }
+        return pivote;
     }
 }

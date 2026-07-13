@@ -12,6 +12,9 @@ public class Enemigo : MonoBehaviour
 {
     public static readonly List<Enemigo> Todos = new List<Enemigo>();
 
+    /// <summary>Dificultad adaptativa invisible: el gestor lo baja si el jugador muere seguido.</summary>
+    public static float FactorDanoGlobal = 1f;
+
     [HideInInspector] public float vida = 100f;
     [HideInInspector] public bool muerto;
     [HideInInspector] public bool esJefe;
@@ -121,7 +124,7 @@ public class Enemigo : MonoBehaviour
         Vector3 hacia = jugador.transform.position - transform.position;
         hacia.y = 0f;
         if (hacia.magnitude < alcance + 0.7f)
-            jugador.RecibirDanoDesde(dano, this);
+            jugador.RecibirDanoDesde(dano * FactorDanoGlobal, this);
     }
 
     public void RecibirDano(float d, Vector3 origen, float empuje = 0.55f, bool critico = false)

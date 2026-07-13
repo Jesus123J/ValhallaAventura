@@ -2,9 +2,10 @@ using UnityEngine;
 using System.Collections;
 
 /// <summary>
-/// Animacion procedimental de los personajes voxel en 3D:
-/// - Caminar: brazos y piernas oscilan hacia adelante/atras (eje X).
-/// - Atacar: el brazo del arma se alza sobre la cabeza y descarga el golpe.
+/// Animacion procedimental del personaje voxel, con vida:
+/// - Caminar: brazos y piernas oscilan + el CUERPO rebota y se inclina adelante.
+/// - Reposo: respiracion sutil (el cuerpo sube y baja despacio).
+/// - Atacar: alza el arma sobre la cabeza y la descarga.
 /// </summary>
 public class AnimadorPersonaje : MonoBehaviour
 {
@@ -13,13 +14,37 @@ public class AnimadorPersonaje : MonoBehaviour
     private bool caminando;
     private bool atacando;
     private float fase;
+    private float inclinacion;
+    private Vector3 posBase;
+
+    void Start()
+    {
+        posBase = transform.localPosition;
+    }
 
     public void Caminando(bool si) { caminando = si; }
 
     void Update()
     {
-        if (caminando) fase += Time.deltaTime * 10f;
-        float ang = caminando ? Mathf.Sin(fase) * 35f : 0f;
+        float ang;
+        float rebote;
+
+        if (caminando)
+        {
+            fase += Time.deltaTime * 10f;
+            ang = Mathf.Sin(fase) * 35f;
+            rebote = Mathf.Abs(Mathf.Sin(fase)) * 0.07f;                 // rebota al caminar
+            inclinacion = Mathf.Lerp(inclinacion, 6f, 6f * Time.deltaTime); // se inclina adelante
+        }
+        else
+        {
+            ang = 0f;
+            rebote = Mathf.Sin(Time.time * 2f) * 0.02f;                  // respira en reposo
+            inclinacion = Mathf.Lerp(inclinacion, 0f, 6f * Time.deltaTime);
+        }
+
+        transform.localPosition = posBase + Vector3.up * rebote;
+        transform.localRotation = Quaternion.Euler(inclinacion, 0f, 0f);
 
         piernaDer.localRotation = Quaternion.Euler(ang, 0f, 0f);
         piernaIzq.localRotation = Quaternion.Euler(-ang, 0f, 0f);
@@ -39,9 +64,9 @@ public class AnimadorPersonaje : MonoBehaviour
     IEnumerator AnimAtaque()
     {
         atacando = true;
-        yield return Girar(brazoDer, 0f, -140f, 0.14f);  // alzar el arma
-        yield return Girar(brazoDer, -140f, 40f, 0.09f); // ¡golpe!
-        yield return Girar(brazoDer, 40f, 0f, 0.16f);    // volver
+        yield return Girar(brazoDer, 0f, -140f, 0.14f);
+        yield return Girar(brazoDer, -140f, 40f, 0.09f);
+        yield return Girar(brazoDer, 40f, 0f, 0.16f);
         atacando = false;
     }
 
