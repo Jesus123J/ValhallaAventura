@@ -66,6 +66,8 @@ public class GestorAventura : MonoBehaviour
     AudioSource musicaSrc, sfxSrc;
     AudioClip sfxEspada, sfxImpacto, sfxHerido, sfxFanfarria, sfxAlmas, sfxTrueno, sfxTecla, sfxRemate;
     Texture2D texBlanca;
+    Texture2D texVineta;          // oscurecimiento de bordes de pantalla
+    float marcadorGolpeHasta;     // marcador de impacto en la cruceta
     GUIStyle estiloCentro, estiloHud, estiloMision, estiloTitulo;
 
     void Awake() { Instancia = this; }
@@ -90,6 +92,22 @@ public class GestorAventura : MonoBehaviour
         texBlanca = new Texture2D(1, 1);
         texBlanca.SetPixel(0, 0, Color.white);
         texBlanca.Apply();
+
+        // viñeta: bordes de pantalla oscurecidos (mas cine, mas juego)
+        const int NV = 128;
+        texVineta = new Texture2D(NV, NV, TextureFormat.RGBA32, false);
+        var pxV = new Color32[NV * NV];
+        for (int y = 0; y < NV; y++)
+            for (int x = 0; x < NV; x++)
+            {
+                float dx = (x - NV / 2f) / (NV / 2f);
+                float dy = (y - NV / 2f) / (NV / 2f);
+                float d = Mathf.Sqrt(dx * dx + dy * dy);
+                byte a = (byte)(Mathf.SmoothStep(0f, 0.7f, (d - 0.55f) / 0.55f) * 255f);
+                pxV[y * NV + x] = new Color32(0, 0, 0, a);
+            }
+        texVineta.SetPixels32(pxV);
+        texVineta.Apply();
 
         System.DateTime hoy = System.DateTime.Now;
         claveRecord = "record_" + hoy.Year + "_" + hoy.DayOfYear;
@@ -289,6 +307,63 @@ public class GestorAventura : MonoBehaviour
         float[,] altares = { {18,4}, {26,-5}, {40,6}, {55,0}, {68,-6}, {90,5} };
         for (int i = 0; i < altares.GetLength(0); i++)
             CuboFisico("Altar_" + i, new Vector3(altares[i, 0], 0.45f, altares[i, 1]), new Vector3(3f, 0.9f, 3f), new Color(0.45f, 0.49f, 0.60f));
+
+        // ---- camino de losetas antiguas hacia el portal ----
+        for (int i = 0; i < 30; i++)
+        {
+            Transform loseta = ConstructorPersonaje.Cubo(null, "Loseta_" + i,
+                new Vector3(-8f + i * 4f, 0.03f, Mathf.Sin(i * 0.9f) * 0.8f),
+                new Vector3(2.0f, 0.08f, 1.5f), new Color(0.52f, 0.56f, 0.66f));
+            loseta.rotation = Quaternion.Euler(0f, i * 13f % 20f - 10f, 0f);
+        }
+
+        // ---- estandartes vikingos rojos con emblema dorado ----
+        float[,] estandartes = { {12,5}, {36,-6}, {62,6}, {88,-6} };
+        for (int i = 0; i < estandartes.GetLength(0); i++)
+        {
+            Vector3 basePos = new Vector3(estandartes[i, 0], 0f, estandartes[i, 1]);
+            CuboFisico("Poste_" + i, basePos + new Vector3(0f, 1.6f, 0f), new Vector3(0.14f, 3.2f, 0.14f), new Color(0.3f, 0.2f, 0.12f));
+            ConstructorPersonaje.Cubo(null, "Bandera_" + i, basePos + new Vector3(0.42f, 2.5f, 0f), new Vector3(0.7f, 1.1f, 0.05f), new Color(0.62f, 0.12f, 0.1f));
+            ConstructorPersonaje.Cubo(null, "Emblema_" + i, basePos + new Vector3(0.42f, 2.5f, -0.035f), new Vector3(0.3f, 0.3f, 0.02f), new Color(0.95f, 0.78f, 0.25f), true);
+        }
+
+        // ---- ruinas: arcos de piedra rotos ----
+        float[,] ruinas = { {50, -12}, {78, 14} };
+        for (int i = 0; i < ruinas.GetLength(0); i++)
+        {
+            Vector3 rp = new Vector3(ruinas[i, 0], 0f, ruinas[i, 1]);
+            CuboFisico("RuinaIzq_" + i, rp + new Vector3(-1.6f, 1.5f, 0f), new Vector3(0.9f, 3f, 0.9f), new Color(0.38f, 0.41f, 0.5f));
+            CuboFisico("RuinaDer_" + i, rp + new Vector3(1.6f, 1.0f, 0f), new Vector3(0.9f, 2f, 0.9f), new Color(0.38f, 0.41f, 0.5f));
+            Transform dintelRoto = ConstructorPersonaje.Cubo(null, "RuinaDintel_" + i, rp + new Vector3(-0.4f, 3.1f, 0f), new Vector3(2.4f, 0.6f, 0.9f), new Color(0.34f, 0.37f, 0.45f));
+            dintelRoto.rotation = Quaternion.Euler(0f, 0f, -12f);
+        }
+
+        // ---- monolitos runicos inclinados que brillan ----
+        float[,] monolitos = { {44, 12}, {70, -12} };
+        Color[] brillos = { new Color(0.3f, 0.9f, 1f), new Color(0.8f, 0.5f, 1f) };
+        for (int i = 0; i < monolitos.GetLength(0); i++)
+        {
+            Transform mono = CuboFisico("Monolito_" + i, new Vector3(monolitos[i, 0], 1.7f, monolitos[i, 1]), new Vector3(1.2f, 3.6f, 0.7f), new Color(0.3f, 0.33f, 0.42f));
+            mono.rotation = Quaternion.Euler(0f, 30f + i * 70f, i == 0 ? 8f : -6f);
+            ConstructorPersonaje.Cubo(mono, "RunaMono1", new Vector3(0f, 0.15f, 0.52f), new Vector3(0.25f, 0.08f, 0.04f), brillos[i], true);
+            ConstructorPersonaje.Cubo(mono, "RunaMono2", new Vector3(0f, 0.02f, 0.52f), new Vector3(0.08f, 0.2f, 0.04f), brillos[i], true);
+            Light luzMono = mono.gameObject.AddComponent<Light>();
+            luzMono.type = LightType.Point;
+            luzMono.color = brillos[i];
+            luzMono.range = 7f;
+            luzMono.intensity = 1.8f;
+        }
+
+        // ---- huesos y craneos de batallas pasadas ----
+        float[,] huesos = { {13,-8}, {27,9}, {49,4}, {66,10}, {83,7}, {98,-5} };
+        for (int i = 0; i < huesos.GetLength(0); i++)
+        {
+            Vector3 hp = new Vector3(huesos[i, 0], 0.12f, huesos[i, 1]);
+            Transform craneo = ConstructorPersonaje.Cubo(null, "Craneo_" + i, hp, new Vector3(0.28f, 0.24f, 0.3f), new Color(0.88f, 0.86f, 0.78f));
+            craneo.rotation = Quaternion.Euler(0f, i * 57f, 0f);
+            Transform huesoL = ConstructorPersonaje.Cubo(null, "Hueso_" + i, hp + new Vector3(0.4f, -0.06f, 0.2f), new Vector3(0.55f, 0.08f, 0.08f), new Color(0.88f, 0.86f, 0.78f));
+            huesoL.rotation = Quaternion.Euler(0f, i * 33f + 20f, 0f);
+        }
 
         float[,] posAlmas = { {10,1,0}, {14,1,-3}, {18,2.1f,4}, {26,2.1f,-5}, {33,1,3}, {40,2.1f,6}, {47,1,-2}, {52,1,2},
                               {63,1,-4}, {68,2.1f,-6}, {76,1,3}, {90,2.1f,5}, {95,1,-2}, {106,1,0} };
@@ -495,6 +570,9 @@ public class GestorAventura : MonoBehaviour
     // ============================================================
     //  EVENTOS
     // ============================================================
+    /// <summary>Marca de impacto en la cruceta cuando tu espada conecta.</summary>
+    public void MarcarGolpe() { marcadorGolpeHasta = Time.time + 0.14f; }
+
     public void SonidoEspada() { sfxSrc.PlayOneShot(sfxEspada); }
     public void SonidoImpacto() { sfxSrc.PlayOneShot(sfxImpacto); }
     public void SonidoTrueno() { sfxSrc.PlayOneShot(sfxTrueno); }
@@ -779,117 +857,217 @@ public class GestorAventura : MonoBehaviour
         if (tiendaAbierta)
             DibujarPanel();
 
-        // avisos de juego: pergamino nordico en la esquina inferior derecha
+        // avisos rapidos: pergamino chico en la esquina inferior derecha
         if (Time.time < avisoEsquinaHasta && !tiendaAbierta && estado == Estado.Jugando)
-            DibujarPergamino();
+        {
+            float alfaAviso = Mathf.Clamp01((avisoEsquinaHasta - Time.time) / 0.5f);
+            DibujarCajaPergamino(new Rect(Screen.width - 354f, Screen.height - 250f, 330f, 108f),
+                                 avisoEsquina, alfaAviso, 15, null);
+        }
 
-        // pantallas modales (intro / fin): centradas, con el juego detenido
+        // dialogos de historia / fin: PERGAMINO GRANDE al lado derecho (nunca en el centro)
         if (!string.IsNullOrEmpty(mensajeCentral) && !tiendaAbierta)
         {
-            GUI.color = new Color(0f, 0f, 0f, 0.55f);
-            GUI.DrawTexture(new Rect(0, Screen.height * 0.26f, Screen.width, Screen.height * 0.48f), texBlanca);
-            GUI.color = Color.white;
-            GUI.Label(new Rect(0, Screen.height * 0.26f, Screen.width, Screen.height * 0.48f), mensajeCentral, estiloCentro);
+            float w = Mathf.Min(470f, Screen.width * 0.42f);
+            float h = Mathf.Min(430f, Screen.height * 0.62f);
+            DibujarCajaPergamino(new Rect(Screen.width - w - 26f, (Screen.height - h) * 0.5f, w, h),
+                                 mensajeCentral, 1f, 17, "-  SAGA DEL NORTE  -");
         }
     }
 
-    /// <summary>Pergamino viejo nordico en la esquina: fondo beige, borde de madera y runas.</summary>
-    void DibujarPergamino()
+    /// <summary>
+    /// Caja de pergamino nordico: doble borde (madera + filo dorado), papel viejo,
+    /// esquinas rasgadas, cenefa de rombos runicos y texto en tinta.
+    /// </summary>
+    void DibujarCajaPergamino(Rect r, string texto, float alfa, int tamanoLetra, string titulo)
     {
-        float w = 330f, h = 108f;
-        float x = Screen.width - w - 24f;
-        float y = Screen.height - h - 110f;
-
-        // desvanecimiento en el ultimo medio segundo
-        float alfa = Mathf.Clamp01((avisoEsquinaHasta - Time.time) / 0.5f);
-
+        // sombra proyectada
+        GUI.color = new Color(0f, 0f, 0f, 0.35f * alfa);
+        GUI.DrawTexture(new Rect(r.x + 6, r.y + 8, r.width, r.height), texBlanca);
         // borde de madera oscura
-        GUI.color = new Color(0.30f, 0.20f, 0.10f, alfa);
-        GUI.DrawTexture(new Rect(x - 5, y - 5, w + 10, h + 10), texBlanca);
-        // papel viejo
-        GUI.color = new Color(0.85f, 0.77f, 0.58f, alfa);
-        GUI.DrawTexture(new Rect(x, y, w, h), texBlanca);
-        // esquinas "rasgadas"
-        GUI.color = new Color(0.30f, 0.20f, 0.10f, alfa);
-        GUI.DrawTexture(new Rect(x, y, 14, 14), texBlanca);
-        GUI.DrawTexture(new Rect(x + w - 14, y + h - 14, 14, 14), texBlanca);
-        // cenefa runica superior
-        GUI.color = new Color(0.45f, 0.30f, 0.15f, alfa);
-        GUI.DrawTexture(new Rect(x + 18, y + 8, w - 36, 2), texBlanca);
-        GUI.DrawTexture(new Rect(x + 18, y + h - 10, w - 36, 2), texBlanca);
+        GUI.color = new Color(0.28f, 0.18f, 0.09f, alfa);
+        GUI.DrawTexture(new Rect(r.x - 6, r.y - 6, r.width + 12, r.height + 12), texBlanca);
+        // filo dorado interior
+        GUI.color = new Color(0.85f, 0.68f, 0.28f, alfa);
+        GUI.DrawTexture(new Rect(r.x - 2, r.y - 2, r.width + 4, r.height + 4), texBlanca);
+        // papel viejo (dos tonos para dar textura)
+        GUI.color = new Color(0.86f, 0.78f, 0.59f, alfa);
+        GUI.DrawTexture(r, texBlanca);
+        GUI.color = new Color(0.80f, 0.71f, 0.51f, alfa);
+        GUI.DrawTexture(new Rect(r.x, r.y + r.height * 0.55f, r.width, r.height * 0.45f), texBlanca);
+        // esquinas rasgadas
+        GUI.color = new Color(0.28f, 0.18f, 0.09f, alfa);
+        GUI.DrawTexture(new Rect(r.x, r.y, 16, 16), texBlanca);
+        GUI.DrawTexture(new Rect(r.x + r.width - 16, r.y, 16, 16), texBlanca);
+        GUI.DrawTexture(new Rect(r.x, r.y + r.height - 16, 16, 16), texBlanca);
+        GUI.DrawTexture(new Rect(r.x + r.width - 16, r.y + r.height - 16, 16, 16), texBlanca);
 
-        // texto en tinta oscura
+        // cenefa de rombos runicos arriba y abajo
+        GUI.color = new Color(0.5f, 0.34f, 0.14f, alfa);
+        int rombos = Mathf.FloorToInt((r.width - 60f) / 26f);
+        for (int i = 0; i < rombos; i++)
+        {
+            float rx = r.x + 34f + i * 26f;
+            GUI.DrawTexture(new Rect(rx, r.y + 10f, 7, 7), texBlanca);
+            GUI.DrawTexture(new Rect(rx, r.y + r.height - 17f, 7, 7), texBlanca);
+        }
+
+        float margenSup = 24f;
+        if (!string.IsNullOrEmpty(titulo))
+        {
+            GUIStyle tituloSt = new GUIStyle(GUI.skin.label)
+            { fontSize = 15, alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold };
+            tituloSt.normal.textColor = new Color(0.45f, 0.12f, 0.08f, alfa); // tinta roja de saga
+            GUI.color = Color.white;
+            GUI.Label(new Rect(r.x + 16, r.y + 20, r.width - 32, 24), titulo, tituloSt);
+            GUI.color = new Color(0.5f, 0.34f, 0.14f, alfa);
+            GUI.DrawTexture(new Rect(r.x + 40, r.y + 46, r.width - 80, 2), texBlanca);
+            margenSup = 54f;
+        }
+
         GUIStyle tinta = new GUIStyle(GUI.skin.label)
-        { fontSize = 15, alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold, wordWrap = true };
-        tinta.normal.textColor = new Color(0.25f, 0.15f, 0.06f, alfa);
+        { fontSize = tamanoLetra, alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold, wordWrap = true };
+        tinta.normal.textColor = new Color(0.24f, 0.14f, 0.05f, alfa);
         GUI.color = Color.white;
-        GUI.Label(new Rect(x + 14, y + 10, w - 28, h - 20), avisoEsquina, tinta);
+        GUI.Label(new Rect(r.x + 20, r.y + margenSup, r.width - 40, r.height - margenSup - 20f), texto, tinta);
+    }
+
+    /// <summary>Texto con sombra para que se lea sobre cualquier fondo.</summary>
+    void LabelSombra(Rect r, string t, GUIStyle st)
+    {
+        GUIStyle sombra = new GUIStyle(st);
+        sombra.normal.textColor = new Color(0f, 0f, 0f, 0.85f);
+        GUI.Label(new Rect(r.x + 2, r.y + 2, r.width, r.height), t, sombra);
+        GUI.Label(r, t, st);
     }
 
     void DibujarHUD()
     {
         float cx = Screen.width / 2f, cy = Screen.height / 2f;
-        GUI.color = new Color(1f, 1f, 1f, 0.8f);
-        GUI.DrawTexture(new Rect(cx - 8, cy - 1, 16, 2), texBlanca);
-        GUI.DrawTexture(new Rect(cx - 1, cy - 8, 2, 16), texBlanca);
+        float pctVida = Mathf.Clamp01(Bjorn.vida / Bjorn.vidaMax);
+
+        // ---- viñeta cinematografica + pulso rojo con vida baja ----
         GUI.color = Color.white;
-
-        GUI.color = new Color(0f, 0f, 0f, 0.6f);
-        GUI.DrawTexture(new Rect(18, 18, 304, 30), texBlanca);
-        GUI.color = new Color(0.85f, 0.2f, 0.15f);
-        GUI.DrawTexture(new Rect(20, 20, 300f * Mathf.Clamp01(Bjorn.vida / Bjorn.vidaMax), 26), texBlanca);
-        GUI.color = Color.white;
-        GUI.Label(new Rect(26, 21, 300, 26), "VIDA  " + Mathf.CeilToInt(Bjorn.vida) + "/" + Mathf.CeilToInt(Bjorn.vidaMax), estiloHud);
-
-        string racha_ = Multiplicador > 1 ? "   RACHA x" + Multiplicador + "!" : "";
-        GUI.Label(new Rect(20, 54, 400, 30), "Almas: " + almas + racha_, estiloHud);
-
-        string objetivo;
-        if (modoDesafio)
-            objetivo = "OLEADA " + oleada + "/5      PUNTOS: " + puntuacion;
-        else
-            objetivo = portalActivo ? "OBJETIVO: entra al portal de luz"
-                                    : "OBJETIVO: acaba con los draugr  (" + muertos + "/" + metaEnemigos + ")";
-        GUI.Label(new Rect(Screen.width / 2 - 220, 16, 440, 30), objetivo,
-                  new GUIStyle(estiloHud) { alignment = TextAnchor.MiddleCenter });
-
-        if (!modoDesafio)
+        GUI.DrawTexture(new Rect(0, 0, Screen.width, Screen.height), texVineta);
+        if (pctVida < 0.35f)
         {
-            float tiempo = Time.time - inicioNivel;
-            GUI.Label(new Rect(Screen.width - 320, 50, 300, 90),
-                      (sinDano ? "O" : "X") + " Sin recibir dano\n" +
-                      "O Runas doradas " + almasRecogidas + "/14\n" +
-                      (tiempo <= TiempoMision ? "O" : "X") + " Tiempo " + Reloj(tiempo) + " / 5:00",
-                      estiloMision);
-        }
-
-        if (Time.time < Bjorn.comboHasta && Bjorn.combo > 1)
-            GUI.Label(new Rect(cx - 100, cy + 30, 200, 30),
-                      Bjorn.combo == 3 ? "¡REMATE!" : "COMBO x" + Bjorn.combo,
-                      new GUIStyle(estiloHud) { alignment = TextAnchor.MiddleCenter });
-
-        if (Bjorn.carga01 > 0.01f)
-        {
-            GUI.color = new Color(0f, 0f, 0f, 0.6f);
-            GUI.DrawTexture(new Rect(cx - 60, cy + 60, 120, 12), texBlanca);
-            GUI.color = Bjorn.carga01 >= 1f ? new Color(1f, 0.5f, 0.1f) : new Color(1f, 0.85f, 0.2f);
-            GUI.DrawTexture(new Rect(cx - 58, cy + 62, 116 * Bjorn.carga01, 8), texBlanca);
+            float pulso = (Mathf.Sin(Time.time * 5f) + 1f) * 0.5f;
+            GUI.color = new Color(0.9f, 0.05f, 0.05f, (0.35f - pctVida) * 1.6f * (0.4f + 0.6f * pulso));
+            GUI.DrawTexture(new Rect(0, 0, Screen.width, Screen.height), texVineta);
             GUI.color = Color.white;
         }
 
-        DibujarPoder(new Rect(20, Screen.height - 96, 165, 26), "SHIFT  Dash",
+        // ---- cruceta + marcador dorado cuando conectas un golpe ----
+        GUI.color = new Color(1f, 1f, 1f, 0.85f);
+        GUI.DrawTexture(new Rect(cx - 9, cy - 1.5f, 18, 3), texBlanca);
+        GUI.DrawTexture(new Rect(cx - 1.5f, cy - 9, 3, 18), texBlanca);
+        if (Time.time < marcadorGolpeHasta)
+        {
+            GUI.color = new Color(1f, 0.85f, 0.2f, 0.95f);
+            for (int sx = -1; sx <= 1; sx += 2)
+                for (int sy = -1; sy <= 1; sy += 2)
+                    GUI.DrawTexture(new Rect(cx + sx * 15 - 3, cy + sy * 15 - 3, 7, 7), texBlanca);
+        }
+        GUI.color = Color.white;
+
+        // ---- BARRA DE VIDA grande con marco de madera ----
+        Rect vr = new Rect(20, 16, 400, 42);
+        GUI.color = new Color(0.28f, 0.18f, 0.09f, 0.95f);
+        GUI.DrawTexture(new Rect(vr.x - 4, vr.y - 4, vr.width + 8, vr.height + 8), texBlanca);
+        GUI.color = new Color(0f, 0f, 0f, 0.78f);
+        GUI.DrawTexture(vr, texBlanca);
+        Color colVida = pctVida > 0.5f ? new Color(0.78f, 0.16f, 0.12f)
+                       : pctVida > 0.25f ? new Color(0.95f, 0.5f, 0.1f)
+                       : new Color(1f, 0.12f, 0.08f);
+        GUI.color = colVida;
+        GUI.DrawTexture(new Rect(vr.x + 4, vr.y + 4, (vr.width - 8) * pctVida, vr.height - 8), texBlanca);
+        GUI.color = new Color(1f, 1f, 1f, 0.2f); // brillo superior
+        GUI.DrawTexture(new Rect(vr.x + 4, vr.y + 4, (vr.width - 8) * pctVida, (vr.height - 8) * 0.4f), texBlanca);
+        GUI.color = Color.white;
+        LabelSombra(vr, "VIDA   " + Mathf.CeilToInt(Bjorn.vida) + " / " + Mathf.CeilToInt(Bjorn.vidaMax),
+                    new GUIStyle(estiloHud) { fontSize = 20, alignment = TextAnchor.MiddleCenter });
+
+        // ---- almas + racha, grandes y dorados ----
+        GUIStyle almasSt = new GUIStyle(estiloHud) { fontSize = 20 };
+        almasSt.normal.textColor = new Color(1f, 0.85f, 0.3f);
+        string rachaTxt = Multiplicador > 1 ? "      RACHA x" + Multiplicador + " ¡!" : "";
+        LabelSombra(new Rect(24, 66, 500, 30), "ALMAS  " + almas + rachaTxt, almasSt);
+
+        // ---- objetivo con placa ----
+        string objetivo;
+        if (modoDesafio)
+            objetivo = "OLEADA " + oleada + " / 5      PUNTOS: " + puntuacion;
+        else
+            objetivo = portalActivo ? "OBJETIVO: entra al portal de luz"
+                                    : "OBJETIVO: acaba con los draugr   " + muertos + " / " + metaEnemigos;
+        Rect or_ = new Rect(cx - 270, 14, 540, 36);
+        GUI.color = new Color(0f, 0f, 0f, 0.5f);
+        GUI.DrawTexture(or_, texBlanca);
+        GUI.color = new Color(0.85f, 0.68f, 0.28f, 0.9f);
+        GUI.DrawTexture(new Rect(or_.x, or_.y + or_.height - 3, or_.width, 3), texBlanca);
+        GUI.color = Color.white;
+        LabelSombra(or_, objetivo, new GUIStyle(estiloHud) { fontSize = 18, alignment = TextAnchor.MiddleCenter });
+
+        // ---- misiones con placa (solo historia) ----
+        if (!modoDesafio)
+        {
+            float tiempo = Time.time - inicioNivel;
+            Rect mr = new Rect(Screen.width - 336, 58, 316, 96);
+            GUI.color = new Color(0f, 0f, 0f, 0.45f);
+            GUI.DrawTexture(mr, texBlanca);
+            GUI.color = new Color(0.85f, 0.68f, 0.28f, 0.9f);
+            GUI.DrawTexture(new Rect(mr.x, mr.y, 3, mr.height), texBlanca);
+            GUI.color = Color.white;
+            GUI.Label(new Rect(mr.x + 12, mr.y + 6, mr.width - 20, mr.height - 12),
+                      (sinDano ? "O" : "X") + " Sin recibir dano\n" +
+                      "O Runas doradas " + almasRecogidas + "/14\n" +
+                      (tiempo <= TiempoMision ? "O" : "X") + " Tiempo " + Reloj(tiempo) + " / 5:00",
+                      new GUIStyle(estiloMision) { alignment = TextAnchor.UpperLeft, fontSize = 15 });
+        }
+
+        // ---- combo grande ----
+        if (Time.time < Bjorn.comboHasta && Bjorn.combo > 1)
+        {
+            GUIStyle comboSt = new GUIStyle(estiloHud) { fontSize = 26, alignment = TextAnchor.MiddleCenter };
+            comboSt.normal.textColor = Bjorn.combo == 3 ? new Color(1f, 0.5f, 0.1f) : new Color(1f, 0.85f, 0.3f);
+            LabelSombra(new Rect(cx - 150, cy + 34, 300, 36),
+                        Bjorn.combo == 3 ? "¡ REMATE !" : "COMBO x" + Bjorn.combo, comboSt);
+        }
+
+        // ---- barra de GOLPE CARGADO grande ----
+        if (Bjorn.carga01 > 0.01f)
+        {
+            Rect cr = new Rect(cx - 130, cy + 78, 260, 24);
+            GUI.color = new Color(0.28f, 0.18f, 0.09f, 0.95f);
+            GUI.DrawTexture(new Rect(cr.x - 3, cr.y - 3, cr.width + 6, cr.height + 6), texBlanca);
+            GUI.color = new Color(0f, 0f, 0f, 0.75f);
+            GUI.DrawTexture(cr, texBlanca);
+            GUI.color = Bjorn.carga01 >= 1f ? new Color(1f, 0.45f, 0.05f) : new Color(1f, 0.85f, 0.2f);
+            GUI.DrawTexture(new Rect(cr.x + 3, cr.y + 3, (cr.width - 6) * Bjorn.carga01, cr.height - 6), texBlanca);
+            GUI.color = Color.white;
+            LabelSombra(new Rect(cr.x, cr.y - 26, cr.width, 24),
+                        Bjorn.carga01 >= 1f ? "¡ SUELTA !" : "GOLPE CARGADO...",
+                        new GUIStyle(estiloHud) { fontSize = 17, alignment = TextAnchor.MiddleCenter });
+        }
+
+        // ---- poderes grandes ----
+        DibujarPoder(new Rect(20, Screen.height - 122, 230, 36), "SHIFT   DASH",
                      1f - Mathf.Clamp01(Bjorn.cdDashRestante / Bjorn.cooldownDash), true);
-        DibujarPoder(new Rect(20, Screen.height - 64, 165, 26),
-                     Bjorn.poderRayo ? "Q  Rayo Nv." + Bjorn.nivelRayo : "?  Runa perdida...",
+        DibujarPoder(new Rect(20, Screen.height - 80, 230, 36),
+                     Bjorn.poderRayo ? "Q   RAYO  Nv." + Bjorn.nivelRayo : "?   Runa perdida...",
                      Bjorn.poderRayo ? 1f - Mathf.Clamp01(Bjorn.cdRayoRestante / Bjorn.cooldownRayo) : 0f,
                      Bjorn.poderRayo);
 
-        GUI.Label(new Rect(20, Screen.height - 32, 1200, 30),
-                  "WASD + Raton  |  Clic: combo (manten: cargado)  |  Clic der: parry  |  SHIFT: dash  |  Q: rayo  |  E: poderes  |  TAB: habilidades",
-                  estiloHud);
+        if (Bjorn.agachado)
+            LabelSombra(new Rect(270, Screen.height - 74, 220, 30), "AGACHADO",
+                        new GUIStyle(estiloHud) { fontSize = 18 });
+
+        LabelSombra(new Rect(20, Screen.height - 32, 1300, 30),
+                  "WASD + Raton  |  Clic: combo (manten: cargado)  |  Clic der: parry  |  Ctrl: agacharse  |  SHIFT: dash  |  Q: rayo  |  E: poderes  |  TAB: habilidades",
+                  new GUIStyle(estiloHud) { fontSize = 14 });
 
         if (Time.time < avisoGuardadoHasta)
-            GUI.Label(new Rect(Screen.width - 240, 16, 220, 30), "Progreso guardado ✓", estiloHud);
+            LabelSombra(new Rect(Screen.width - 250, 16, 230, 30), "Progreso guardado ✓", estiloHud);
     }
 
     void DibujarPanel()
@@ -904,17 +1082,20 @@ public class GestorAventura : MonoBehaviour
         GUI.color = Color.white;
 
         // pestañas
-        if (GUI.Button(new Rect(x0 + 20, y0 + 12, 160, 30), pestanaPanel == 0 ? "> HABILIDADES <" : "HABILIDADES")) pestanaPanel = 0;
-        if (GUI.Button(new Rect(x0 + 190, y0 + 12, 130, 30), pestanaPanel == 1 ? "> LOGROS <" : "LOGROS")) pestanaPanel = 1;
-        if (GUI.Button(new Rect(x0 + 330, y0 + 12, 130, 30), pestanaPanel == 2 ? "> PODERES <" : "PODERES")) pestanaPanel = 2;
-        GUI.Label(new Rect(x0 + 480, y0 + 14, w - 500, 26), "Almas: " + almas + "  (TAB/E: volver)", estiloHud);
+        if (GUI.Button(new Rect(x0 + 20, y0 + 12, 150, 30), pestanaPanel == 0 ? "> HABILIDADES <" : "HABILIDADES")) pestanaPanel = 0;
+        if (GUI.Button(new Rect(x0 + 180, y0 + 12, 115, 30), pestanaPanel == 1 ? "> LOGROS <" : "LOGROS")) pestanaPanel = 1;
+        if (GUI.Button(new Rect(x0 + 305, y0 + 12, 115, 30), pestanaPanel == 2 ? "> PODERES <" : "PODERES")) pestanaPanel = 2;
+        if (GUI.Button(new Rect(x0 + 430, y0 + 12, 105, 30), pestanaPanel == 3 ? "> FORJA <" : "FORJA")) pestanaPanel = 3;
+        GUI.Label(new Rect(x0 + 555, y0 + 14, w - 575, 26), "Almas: " + almas + "  (TAB: volver)", estiloHud);
 
         if (pestanaPanel == 0)
             DibujarHabilidades(x0, y0 + 50, w);
         else if (pestanaPanel == 1)
             DibujarLogros(x0, y0 + 50, w, h - 60);
-        else
+        else if (pestanaPanel == 2)
             DibujarPoderes(x0, y0 + 50, w);
+        else
+            DibujarForja(x0, y0 + 50, w);
     }
 
     void DibujarHabilidades(float x0, float y0, float w)
@@ -1008,6 +1189,60 @@ public class GestorAventura : MonoBehaviour
             st2.normal.textColor = st.normal.textColor;
             GUI.Label(new Rect(x0 + 44, py + 27, w - 100, 22), poderes[i][1], st2);
         }
+    }
+
+    /// <summary>
+    /// FORJA: el jugador CREA su propia espada eligiendo colores de empuñadura,
+    /// hoja y guante. Se aplica al instante (la ves en tu mano) y queda guardada.
+    /// </summary>
+    void DibujarForja(float x0, float y0, float w)
+    {
+        GUI.Label(new Rect(x0, y0 + 4, w, 26), "FORJA DEL HERRERO - crea tu propia espada",
+                  new GUIStyle(estiloHud) { alignment = TextAnchor.MiddleCenter });
+
+        string[] categorias = { "EMPUNADURA Y POMO", "HOJA", "GUANTE" };
+        Color[][] paletas = { Jugador.ColoresEmpunadura, Jugador.ColoresHoja, Jugador.ColoresGuante };
+
+        for (int c = 0; c < 3; c++)
+        {
+            float fy = y0 + 44 + c * 74;
+            GUI.Label(new Rect(x0 + 40, fy, 260, 24), categorias[c], estiloHud);
+            int actual = PlayerPrefs.GetInt("forja_" + c, 0);
+
+            for (int i = 0; i < paletas[c].Length; i++)
+            {
+                Rect br = new Rect(x0 + 40 + i * 66, fy + 26, 56, 34);
+                // marco dorado en la opcion elegida
+                if (i == actual)
+                {
+                    GUI.color = new Color(1f, 0.85f, 0.2f);
+                    GUI.DrawTexture(new Rect(br.x - 3, br.y - 3, br.width + 6, br.height + 6), texBlanca);
+                }
+                GUI.color = paletas[c][i];
+                GUI.DrawTexture(br, texBlanca);
+                GUI.color = Color.white;
+                if (GUI.Button(br, "", GUIStyle.none) && i != actual)
+                {
+                    PlayerPrefs.SetInt("forja_" + c, i);
+                    PlayerPrefs.Save();
+                    Bjorn.ReconstruirEspada(); // se ve al instante en tu mano
+                    sfxSrc.PlayOneShot(sfxImpacto); // martillazo de herrero
+                }
+            }
+        }
+
+        // vista previa: la espada dibujada con tus colores
+        float px = x0 + w - 300, py = y0 + 60;
+        GUI.Label(new Rect(px, py - 26, 260, 24), "Asi se ve:", estiloHud);
+        Color emp = Jugador.ColoresEmpunadura[PlayerPrefs.GetInt("forja_0", 0)];
+        Color hoja = Jugador.ColoresHoja[PlayerPrefs.GetInt("forja_1", 0)];
+        GUI.color = emp;   GUI.DrawTexture(new Rect(px, py + 60, 26, 26), texBlanca);           // pomo
+        GUI.color = new Color(0.35f, 0.25f, 0.15f); GUI.DrawTexture(new Rect(px + 26, py + 66, 40, 14), texBlanca); // mango
+        GUI.color = emp;   GUI.DrawTexture(new Rect(px + 66, py + 48, 14, 50), texBlanca);      // guarda
+        GUI.color = hoja;  GUI.DrawTexture(new Rect(px + 80, py + 62, 150, 22), texBlanca);     // hoja
+        GUI.color = hoja;  GUI.DrawTexture(new Rect(px + 230, py + 66, 22, 14), texBlanca);     // punta
+        GUI.color = new Color(1f, 1f, 1f, 0.7f); GUI.DrawTexture(new Rect(px + 82, py + 64, 146, 4), texBlanca); // filo
+        GUI.color = Color.white;
     }
 
     void DibujarPoder(Rect r, string nombre, float carga, bool desbloqueado)

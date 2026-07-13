@@ -28,6 +28,12 @@ public class Enemigo : MonoBehaviour
     private float cooldown;
     private float aturdidoHasta;
 
+    // comportamiento dinamico: rodear como lobo y embestir
+    private int dirOrbita = 1;
+    private float proxCambioOrbita;
+    private float proxEmbestida;
+    private bool embistiendo;
+
     void Awake()
     {
         anim = ConstructorPersonaje.CrearVisual(transform, true);
@@ -36,6 +42,8 @@ public class Enemigo : MonoBehaviour
                                           new Vector2(0.3f, 0.3f), new Color(1f, 0.25f, 0.1f), 7, 0.1f, true);
         senal.localRotation = Quaternion.Euler(0f, 0f, 45f);
         senal.gameObject.SetActive(false);
+        dirOrbita = Random.value < 0.5f ? -1 : 1;
+        proxEmbestida = Time.time + Random.Range(4f, 9f);
         Todos.Add(this);
     }
 
@@ -81,9 +89,9 @@ public class Enemigo : MonoBehaviour
 
     void Update()
     {
-        if (muerto || jugador == null || !jugador.controlActivo || Time.time < aturdidoHasta)
+        if (muerto || jugador == null || !jugador.controlActivo || Time.time < aturdidoHasta || embistiendo)
         {
-            if (!muerto && anim != null) anim.Caminando(false);
+            if (!muerto && anim != null && !embistiendo) anim.Caminando(false);
             return;
         }
 
@@ -98,8 +106,26 @@ public class Enemigo : MonoBehaviour
 
         if (dist < 16f && dist > alcance)
         {
-            transform.position += hacia.normalized * velocidad * Time.deltaTime;
+            Vector3 avance = hacia.normalized;
+
+            // de cerca RODEA como lobo en vez de venir en linea recta
+            if (dist < 4.5f && !esJefe)
+            {
+                if (Time.time > proxCambioOrbita)
+                {
+                    dirOrbita = -dirOrbita;
+                    proxCambioOrbita = Time.time + Random.Range(2f, 4f);
+                }
+                Vector3 tangente = Vector3.Cross(Vector3.up, avance) * dirOrbita;
+                avance = (avance * 0.35f + tangente * 0.65f).normalized;
+            }
+
+            transform.position += avance * velocidad * Time.deltaTime;
             anim.Caminando(true);
+
+            // EMBESTIDA sorpresa desde media distancia (telegrafiada)
+            if (!esJefe && dist > 5f && dist < 12f && Time.time > proxEmbestida)
+                StartCoroutine(Embestida());
         }
         else
         {
@@ -110,6 +136,42 @@ public class Enemigo : MonoBehaviour
                 StartCoroutine(Atacar());
             }
         }
+    }
+
+    /// <summary>Se agazapa (aviso) y se lanza a la carrera contra el jugador.</summary>
+    IEnumerator Embestida()
+    {
+        embistiendo = true;
+        proxEmbestida = Time.time + Random.Range(5f, 10f);
+
+        // aviso: se agazapa y enciende la senal
+        senal.gameObject.SetActive(true);
+        Vector3 esc = transform.localScale;
+        transform.localScale = new Vector3(esc.x, esc.y * 0.82f, esc.z);
+        yield return new WaitForSeconds(0.35f);
+        transform.localScale = esc;
+        senal.gameObject.SetActive(false);
+        if (muerto || jugador == null) { embistiendo = false; yield break; }
+
+        float fin = Time.time + 0.7f;
+        while (Time.time < fin && !muerto && jugador != null)
+        {
+            Vector3 h = jugador.transform.position - transform.position;
+            h.y = 0f;
+            if (h.magnitude < 1.7f)
+            {
+                anim.Atacar();
+                yield return new WaitForSeconds(0.15f);
+                if (!muerto && h.magnitude < 2.3f)
+                    jugador.RecibirDanoDesde(dano * FactorDanoGlobal, this);
+                break;
+            }
+            transform.position += h.normalized * velocidad * 3.2f * Time.deltaTime;
+            transform.rotation = Quaternion.LookRotation(h);
+            anim.Caminando(true);
+            yield return null;
+        }
+        embistiendo = false;
     }
 
     IEnumerator Atacar()

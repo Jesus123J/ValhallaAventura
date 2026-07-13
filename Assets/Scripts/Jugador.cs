@@ -54,6 +54,10 @@ public class Jugador : MonoBehaviour
     private bool atacando;
     private Vector3 dirDash;
 
+    // agacharse
+    [HideInInspector] public bool agachado;
+    private float alturaOjos = 1.6f;
+
     // salto amable
     private float ultimoSuelo = -99f;
     private float saltoPedido = -99f;
@@ -68,6 +72,27 @@ public class Jugador : MonoBehaviour
     // pose estilo Minecraft: la espada cruza en diagonal desde abajo-derecha
     static readonly Vector3 BrazoReposo = new Vector3(-18f, -32f, 12f);
     private Vector3 swayActual;
+
+    // ---- FORJA: paletas para que el jugador cree su propia espada ----
+    public static readonly Color[] ColoresEmpunadura =
+    {
+        new Color(0.90f, 0.75f, 0.20f), // oro
+        new Color(0.80f, 0.85f, 0.92f), // plata
+        new Color(0.72f, 0.45f, 0.20f), // cobre
+        new Color(0.70f, 0.15f, 0.12f)  // rojo sangre
+    };
+    public static readonly Color[] ColoresHoja =
+    {
+        new Color(0.86f, 0.89f, 0.96f), // acero claro
+        new Color(0.55f, 0.60f, 0.70f), // acero oscuro
+        new Color(0.95f, 0.85f, 0.45f)  // dorada
+    };
+    public static readonly Color[] ColoresGuante =
+    {
+        new Color(0.35f, 0.25f, 0.15f), // cuero
+        new Color(0.15f, 0.15f, 0.17f), // negro
+        new Color(0.20f, 0.30f, 0.50f)  // azul
+    };
 
     void Awake()
     {
@@ -95,19 +120,22 @@ public class Jugador : MonoBehaviour
     {
         brazoPivote = new GameObject("BrazoEspada").transform;
         brazoPivote.SetParent(camaraT, false);
-        brazoPivote.localPosition = new Vector3(0.48f, -0.46f, 0.62f);
+        brazoPivote.localPosition = new Vector3(0.44f, -0.5f, 0.72f);
         brazoPivote.localRotation = Quaternion.Euler(BrazoReposo);
+        brazoPivote.localScale = Vector3.one * 0.72f; // mas pequena: no tapa la vista
 
+        // colores elegidos en la FORJA (creados por el jugador, persistentes)
         Color piel  = new Color(0.95f, 0.78f, 0.62f);
         Color cuero = new Color(0.35f, 0.25f, 0.15f);
-        Color metal = new Color(0.86f, 0.89f, 0.96f);
-        Color metalOsc = new Color(0.68f, 0.72f, 0.8f);
-        Color oro = new Color(0.9f, 0.75f, 0.2f);
+        Color oro    = ColoresEmpunadura[Mathf.Clamp(PlayerPrefs.GetInt("forja_0", 0), 0, ColoresEmpunadura.Length - 1)];
+        Color metal  = ColoresHoja[Mathf.Clamp(PlayerPrefs.GetInt("forja_1", 0), 0, ColoresHoja.Length - 1)];
+        Color guante = ColoresGuante[Mathf.Clamp(PlayerPrefs.GetInt("forja_2", 0), 0, ColoresGuante.Length - 1)];
+        Color metalOsc = metal * 0.78f;
 
         // brazo que entra desde la esquina de la pantalla
         Transform brazo = ConstructorPersonaje.Cubo(brazoPivote, "Brazo", new Vector3(0.06f, -0.24f, -0.16f), new Vector3(0.11f, 0.36f, 0.11f), piel);
         brazo.localRotation = Quaternion.Euler(-38f, 0f, -14f);
-        ConstructorPersonaje.Cubo(brazoPivote, "Guante", new Vector3(0f, -0.05f, 0f), new Vector3(0.13f, 0.13f, 0.13f), cuero);
+        ConstructorPersonaje.Cubo(brazoPivote, "Guante", new Vector3(0f, -0.05f, 0f), new Vector3(0.13f, 0.13f, 0.13f), guante);
 
         // espada inclinada hacia arriba-adelante, como se sostiene de verdad
         Transform espada = new GameObject("Espada").transform;
@@ -118,10 +146,10 @@ public class Jugador : MonoBehaviour
         ConstructorPersonaje.Cubo(espada, "Pomo", new Vector3(0f, 0f, -0.14f), new Vector3(0.08f, 0.08f, 0.06f), oro);
         ConstructorPersonaje.Cubo(espada, "Mango", new Vector3(0f, 0f, -0.02f), new Vector3(0.05f, 0.05f, 0.2f), cuero);
         ConstructorPersonaje.Cubo(espada, "Guarda", new Vector3(0f, 0f, 0.1f), new Vector3(0.3f, 0.06f, 0.06f), oro);
-        ConstructorPersonaje.Cubo(espada, "Hoja", new Vector3(0f, 0f, 0.62f), new Vector3(0.13f, 0.045f, 1.0f), metal);
-        ConstructorPersonaje.Cubo(espada, "Canal", new Vector3(0f, 0.026f, 0.58f), new Vector3(0.04f, 0.01f, 0.85f), metalOsc);
-        ConstructorPersonaje.Cubo(espada, "Punta", new Vector3(0f, 0f, 1.19f), new Vector3(0.08f, 0.04f, 0.14f), metal);
-        ConstructorPersonaje.Cubo(espada, "Filo", new Vector3(0.055f, 0f, 0.62f), new Vector3(0.02f, 0.03f, 0.95f), new Color(1f, 1f, 1f, 0.9f), true);
+        ConstructorPersonaje.Cubo(espada, "Hoja", new Vector3(0f, 0f, 0.52f), new Vector3(0.11f, 0.04f, 0.8f), metal);
+        ConstructorPersonaje.Cubo(espada, "Canal", new Vector3(0f, 0.023f, 0.5f), new Vector3(0.035f, 0.01f, 0.68f), metalOsc);
+        ConstructorPersonaje.Cubo(espada, "Punta", new Vector3(0f, 0f, 0.98f), new Vector3(0.07f, 0.035f, 0.12f), metal);
+        ConstructorPersonaje.Cubo(espada, "Filo", new Vector3(0.047f, 0f, 0.52f), new Vector3(0.018f, 0.028f, 0.75f), new Color(1f, 1f, 1f, 0.9f), true);
     }
 
     void Update()
@@ -142,12 +170,23 @@ public class Jugador : MonoBehaviour
             camaraT.localRotation = Quaternion.Euler(pitch, 0f, 0f);
         }
 
+        // ---- Agacharse (Ctrl): baja la camara, encoge el cuerpo y anda sigiloso ----
+        bool quiereAgachar = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.C);
+        if (quiereAgachar != agachado)
+        {
+            agachado = quiereAgachar;
+            control.height = agachado ? 1.1f : 1.8f;
+            control.center = new Vector3(0f, agachado ? 0.55f : 0.9f, 0f);
+        }
+        alturaOjos = Mathf.Lerp(alturaOjos, agachado ? 0.95f : 1.6f, 10f * Time.deltaTime);
+        camaraT.localPosition = new Vector3(camaraT.localPosition.x, alturaOjos, camaraT.localPosition.z);
+
         // ---- Moverse ----
         float h = Input.GetAxisRaw("Horizontal");
         float v = Input.GetAxisRaw("Vertical");
         Vector3 dir = (transform.forward * v + transform.right * h);
         if (dir.magnitude > 1f) dir.Normalize();
-        float velActual = bloqueando ? velocidad * 0.4f : velocidad;
+        float velActual = bloqueando ? velocidad * 0.4f : (agachado ? velocidad * 0.5f : velocidad);
 
         // ---- Salto amable: coyote time + doble salto + buffer ----
         bool enSuelo = control.isGrounded;
@@ -196,8 +235,8 @@ public class Jugador : MonoBehaviour
                 faseBob += Time.deltaTime * 9f;
                 bob = Mathf.Abs(Mathf.Sin(faseBob)) * 0.03f;
             }
-            brazoPivote.localPosition = new Vector3(0.48f + Mathf.Sin(faseBob * 0.5f) * 0.012f,
-                                                    -0.46f + bob, 0.62f);
+            brazoPivote.localPosition = new Vector3(0.44f + Mathf.Sin(faseBob * 0.5f) * 0.012f,
+                                                    -0.5f + bob, 0.72f);
 
             // la espada "pesa": se retrasa un poco al girar la vista
             Vector3 swayObjetivo = new Vector3(-Input.GetAxis("Mouse Y") * 4f,
@@ -333,6 +372,7 @@ public class Jugador : MonoBehaviour
 
         float alcance = esRemate ? 3.5f : 3f;
         float angulo = esRemate ? 55f : 42f;
+        bool conecto = false;
         foreach (Enemigo e in Enemigo.Todos.ToArray())
         {
             if (e == null || e.muerto) continue;
@@ -342,8 +382,10 @@ public class Jugador : MonoBehaviour
                 bool critico = Random.value < 0.10f;
                 float dano = danoEspada * danoMultiplicador * (esRemate ? bonoRemate : 1f) * (critico ? 1.5f : 1f);
                 e.RecibirDano(dano, transform.position, esRemate ? 1.2f : 0.55f, critico);
+                conecto = true;
             }
         }
+        if (conecto) GestorAventura.Instancia.MarcarGolpe();
     }
 
     IEnumerator GolpeCargado()
@@ -361,6 +403,7 @@ public class Jugador : MonoBehaviour
         }
         brazoPivote.localRotation = Quaternion.Euler(BrazoReposo);
 
+        bool conecto = false;
         foreach (Enemigo e in Enemigo.Todos.ToArray())
         {
             if (e == null || e.muerto) continue;
@@ -371,8 +414,10 @@ public class Jugador : MonoBehaviour
                 bool critico = Random.value < 0.10f;
                 float dano = danoEspada * danoMultiplicador * 1.5f * (critico ? 1.5f : 1f);
                 e.RecibirDano(dano, transform.position, 1.4f, critico);
+                conecto = true;
             }
         }
+        if (conecto) GestorAventura.Instancia.MarcarGolpe();
         atacando = false;
     }
 
@@ -430,14 +475,21 @@ public class Jugador : MonoBehaviour
 
     IEnumerator SacudidaCamara()
     {
-        Vector3 basePos = new Vector3(0f, 1.6f, 0f);
         for (int i = 0; i < 5; i++)
         {
+            Vector3 basePos = new Vector3(0f, alturaOjos, 0f);
             camaraT.localPosition = basePos + (Vector3)Random.insideUnitCircle * 0.06f;
             yield return null;
             yield return null;
         }
-        camaraT.localPosition = basePos;
+        camaraT.localPosition = new Vector3(0f, alturaOjos, 0f);
+    }
+
+    /// <summary>La FORJA cambio los colores: rehace la espada en tu mano al instante.</summary>
+    public void ReconstruirEspada()
+    {
+        if (brazoPivote != null) Destroy(brazoPivote.gameObject);
+        CrearBrazoConEspada();
     }
 
     public void Teletransportar(Vector3 pos)
