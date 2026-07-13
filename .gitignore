@@ -1,0 +1,32 @@
+# Carpetas generadas por Unity (se regeneran solas al abrir el proyecto)
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]serSettings/
+[Mm]emoryCaptures/
+[Rr]ecordings/
+
+# Archivos de Visual Studio / Rider
+.vs/
+.idea/
+*.csproj
+*.sln
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+
+# Otros
+*.apk
+*.aab
+*.unitypackage
+*.app
+crashlytics-build.properties
