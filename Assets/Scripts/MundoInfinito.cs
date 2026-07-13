@@ -101,29 +101,29 @@ public class MundoInfinito : MonoBehaviour
                 Color cTop = GeneradorMundo.ColorSuperficie(wx, wz, h);
                 Color cLado = GeneradorMundo.ColorLadera(wx, wz);
 
-                // cara superior
+                // cara superior (normal hacia ARRIBA)
                 Quad(verts, tris, cols,
-                     new Vector3(lx, h, lz), new Vector3(lx + 1, h, lz),
-                     new Vector3(lx + 1, h, lz + 1), new Vector3(lx, h, lz + 1), cTop);
+                     new Vector3(lx, h, lz), new Vector3(lx, h, lz + 1),
+                     new Vector3(lx + 1, h, lz + 1), new Vector3(lx + 1, h, lz), cTop);
 
-                // paredes hacia los vecinos mas bajos
+                // paredes hacia los vecinos mas bajos (cada una con su normal hacia AFUERA)
                 int hE = GeneradorMundo.Altura(wx + 1, wz);
-                if (hE < h)
+                if (hE < h) // pared este (+x)
                     Quad(verts, tris, cols,
-                         new Vector3(lx + 1, hE, lz + 1), new Vector3(lx + 1, h, lz + 1),
-                         new Vector3(lx + 1, h, lz), new Vector3(lx + 1, hE, lz), cLado);
+                         new Vector3(lx + 1, hE, lz), new Vector3(lx + 1, h, lz),
+                         new Vector3(lx + 1, h, lz + 1), new Vector3(lx + 1, hE, lz + 1), cLado);
                 int hO = GeneradorMundo.Altura(wx - 1, wz);
-                if (hO < h)
+                if (hO < h) // pared oeste (-x)
                     Quad(verts, tris, cols,
-                         new Vector3(lx, hO, lz), new Vector3(lx, h, lz),
-                         new Vector3(lx, h, lz + 1), new Vector3(lx, hO, lz + 1), cLado);
+                         new Vector3(lx, hO, lz + 1), new Vector3(lx, h, lz + 1),
+                         new Vector3(lx, h, lz), new Vector3(lx, hO, lz), cLado);
                 int hN = GeneradorMundo.Altura(wx, wz + 1);
-                if (hN < h)
+                if (hN < h) // pared norte (+z)
                     Quad(verts, tris, cols,
                          new Vector3(lx + 1, hN, lz + 1), new Vector3(lx + 1, h, lz + 1),
                          new Vector3(lx, h, lz + 1), new Vector3(lx, hN, lz + 1), cLado);
                 int hS = GeneradorMundo.Altura(wx, wz - 1);
-                if (hS < h)
+                if (hS < h) // pared sur (-z)
                     Quad(verts, tris, cols,
                          new Vector3(lx, hS, lz), new Vector3(lx, h, lz),
                          new Vector3(lx + 1, h, lz), new Vector3(lx + 1, hS, lz), cLado);
@@ -152,8 +152,8 @@ public class MundoInfinito : MonoBehaviour
     {
         int i = v.Count;
         v.Add(a); v.Add(b); v.Add(d); v.Add(e);
-        t.Add(i); t.Add(i + 2); t.Add(i + 1);
-        t.Add(i); t.Add(i + 3); t.Add(i + 2);
+        t.Add(i); t.Add(i + 1); t.Add(i + 2);
+        t.Add(i); t.Add(i + 2); t.Add(i + 3);
         c.Add(color); c.Add(color); c.Add(color); c.Add(color);
     }
 

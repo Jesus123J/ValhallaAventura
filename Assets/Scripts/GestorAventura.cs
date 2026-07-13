@@ -27,6 +27,34 @@ public class GestorAventura : MonoBehaviour
     // spawner de enemigos
     float proxSpawn;
 
+    // ================= SENDA DEL EINHERJAR (progresion guiada) =================
+    enum EventoSenda { Hoguera, Matar, Bioma, Cofre, Runa, Noche, Jefe, AlmasTotal, Comprar }
+    class PasoSenda
+    {
+        public string desc;
+        public EventoSenda evento;
+        public int meta;
+        public int recompensa;
+        public PasoSenda(string d, EventoSenda e, int m, int r) { desc = d; evento = e; meta = m; recompensa = r; }
+    }
+    static readonly PasoSenda[] Senda =
+    {
+        new PasoSenda("Enciende tu primera hoguera",       EventoSenda.Hoguera,    1,  100),
+        new PasoSenda("Derrota 5 draugr",                  EventoSenda.Matar,      5,  150),
+        new PasoSenda("Visita 2 biomas distintos",         EventoSenda.Bioma,      2,  150),
+        new PasoSenda("Abre un cofre del tesoro",          EventoSenda.Cofre,      1,  150),
+        new PasoSenda("Encuentra la Runa del Trueno",      EventoSenda.Runa,       1,  200),
+        new PasoSenda("Sobrevive una noche entera",        EventoSenda.Noche,      1,  250),
+        new PasoSenda("Derrota a un GUARDIAN errante",     EventoSenda.Jefe,       1,  300),
+        new PasoSenda("Reune 1500 almas",                  EventoSenda.AlmasTotal, 1500, 400),
+        new PasoSenda("Compra 3 habilidades",              EventoSenda.Comprar,    3,  400),
+        new PasoSenda("Derrota 25 draugr",                 EventoSenda.Matar,      25, 500)
+    };
+    int pasoSenda;       // en cual paso vas (persistente)
+    int progSenda;       // progreso dentro del paso (persistente)
+    bool enNochePrev;
+    bool muertoEstaNoche;
+
     int almas;
     int racha;
     int Multiplicador { get { return 1 + Mathf.Min(2, racha / 2); } }
@@ -92,6 +120,8 @@ public class GestorAventura : MonoBehaviour
         Enemigo.FactorDanoGlobal = 1f;
         almas = PlayerPrefs.GetInt("almas", 0);
         Bjorn.poderRayo = PlayerPrefs.GetInt("poder_rayo", 0) == 1;
+        pasoSenda = PlayerPrefs.GetInt("senda_paso", 0);
+        progSenda = PlayerPrefs.GetInt("senda_prog", 0);
         CargarHabilidades();
         AplicarHabilidades();
         StartCoroutine(Intro());
@@ -176,6 +206,7 @@ public class GestorAventura : MonoBehaviour
 
         Logros.Desbloquear("comprador");
         if (rama == 1 && idx == 2) Logros.Desbloquear("trueno");
+        RegistrarSenda(EventoSenda.Comprar);
         bool todo = true;
         for (int r = 0; r < 3; r++)
             for (int c = 0; c < 3; c++)
@@ -294,7 +325,9 @@ public class GestorAventura : MonoBehaviour
             "Los nueve reinos se han fundido\nen un solo mundo sin puertas.\n\nCamina y los descubriras: la tundra helada,\nlos bosques de pinos, las praderas,\nlas tierras de ceniza y las montanas grises.");
 
         yield return MostrarDialogo(
-            "Los draugr acechan... y de NOCHE son mas.\n\nBusca almas, cofres y hogueras.\nEncuentra la RUNA DEL TRUENO.\n\nTAB: habilidades y forja | E: poderes\nCtrl: agacharse | SHIFT: dash");
+            "Los draugr acechan... y de NOCHE son mas.\n\nSigue la SENDA DEL EINHERJAR\n(arriba a la derecha): 10 pasos que te\nguian y te premian con almas." +
+            (pasoSenda < Senda.Length ? "\n\nTu primer paso:\n" + Senda[pasoSenda].desc : "") +
+            "\n\nTAB: habilidades y forja | E: poderes");
 
         estado = Estado.Jugando;
         Bjorn.controlActivo = true;
@@ -304,6 +337,37 @@ public class GestorAventura : MonoBehaviour
     // ============================================================
     //  EVENTOS
     // ============================================================
+    /// <summary>Avanza la Senda del Einherjar cuando ocurre el evento del paso actual.</summary>
+    void RegistrarSenda(EventoSenda evento, int cantidad = 1, int valorAbsoluto = -1)
+    {
+        if (pasoSenda >= Senda.Length) return;
+        PasoSenda paso = Senda[pasoSenda];
+        if (paso.evento != evento) return;
+
+        progSenda = valorAbsoluto >= 0 ? valorAbsoluto : progSenda + cantidad;
+        PlayerPrefs.SetInt("senda_prog", progSenda);
+
+        if (progSenda >= paso.meta)
+        {
+            almas += paso.recompensa;
+            pasoSenda++;
+            progSenda = 0;
+            PlayerPrefs.SetInt("senda_paso", pasoSenda);
+            PlayerPrefs.SetInt("senda_prog", 0);
+            Guardar();
+            sfxSrc.PlayOneShot(sfxFanfarria);
+
+            string siguiente = pasoSenda < Senda.Length
+                ? "Siguiente: " + Senda[pasoSenda].desc
+                : "¡HAS COMPLETADO LA SENDA!\nEres un verdadero EINHERJAR";
+            StartCoroutine(MensajeTemporal("SENDA: ¡paso completado!  +" + paso.recompensa + " almas\n" + siguiente, 4f));
+        }
+        else
+        {
+            PlayerPrefs.Save();
+        }
+    }
+
     public void MarcarGolpe() { marcadorGolpeHasta = Time.time + 0.14f; }
     public void SonidoEspada() { sfxSrc.PlayOneShot(sfxEspada); }
     public void SonidoImpacto() { sfxSrc.PlayOneShot(sfxImpacto); }
@@ -334,6 +398,7 @@ public class GestorAventura : MonoBehaviour
     {
         sfxSrc.PlayOneShot(sfxFanfarria);
         MostrarAviso("Hoguera encendida: vida restaurada\ny punto de descanso guardado");
+        RegistrarSenda(EventoSenda.Hoguera);
     }
 
     public void JugadorHerido()
@@ -361,6 +426,7 @@ public class GestorAventura : MonoBehaviour
                 PlayerPrefs.Save();
                 sfxSrc.PlayOneShot(sfxFanfarria);
                 StartCoroutine(MensajeTemporal("¡PODER DESBLOQUEADO!\nRAYO DE ODIN - pulsa Q", 3.5f));
+                RegistrarSenda(EventoSenda.Runa);
                 break;
         }
     }
@@ -377,6 +443,7 @@ public class GestorAventura : MonoBehaviour
         int total = Logros.Contar("almas", ganadas);
         if (total >= 1000) Logros.Desbloquear("rico");
         if (total >= 3000) Logros.Desbloquear("millonario");
+        RegistrarSenda(EventoSenda.AlmasTotal, 0, almas);
     }
 
     public void CofreAbierto(string msg)
@@ -384,6 +451,7 @@ public class GestorAventura : MonoBehaviour
         sfxSrc.PlayOneShot(sfxFanfarria);
         MostrarAviso(msg);
         if (Logros.Contar("cofres", 1) >= 3) Logros.Desbloquear("abridor");
+        RegistrarSenda(EventoSenda.Cofre);
     }
 
     public void CofreGema()
@@ -392,6 +460,7 @@ public class GestorAventura : MonoBehaviour
         GanarAlmas(150);
         MostrarAviso("¡GEMA RARA! +150 almas");
         if (Logros.Contar("cofres", 1) >= 3) Logros.Desbloquear("abridor");
+        RegistrarSenda(EventoSenda.Cofre);
     }
 
     public void EnemigoMuerto(Enemigo e)
@@ -407,10 +476,16 @@ public class GestorAventura : MonoBehaviour
         {
             Logros.Desbloquear("jefe");
             MostrarAviso("¡GUARDIAN DERROTADO!  +500 almas");
+            RegistrarSenda(EventoSenda.Jefe);
         }
+        RegistrarSenda(EventoSenda.Matar);
     }
 
-    public void JugadorCaido() { StartCoroutine(Respawn()); }
+    public void JugadorCaido()
+    {
+        muertoEstaNoche = true; // esta noche ya no cuenta como "sobrevivida"
+        StartCoroutine(Respawn());
+    }
 
     IEnumerator Respawn()
     {
@@ -465,6 +540,23 @@ public class GestorAventura : MonoBehaviour
         // el cielo viaja contigo
         if (cielo != null)
             cielo.position = new Vector3(Bjorn.transform.position.x, 0f, Bjorn.transform.position.z);
+
+        // senda: registrar biomas visitados y noches sobrevividas
+        int biomaBit = 1 << (int)GeneradorMundo.Bioma(
+            Mathf.FloorToInt(Bjorn.transform.position.x), Mathf.FloorToInt(Bjorn.transform.position.z));
+        int visitados = PlayerPrefs.GetInt("biomas_visitados", 0);
+        if ((visitados & biomaBit) == 0)
+        {
+            visitados |= biomaBit;
+            PlayerPrefs.SetInt("biomas_visitados", visitados);
+            int cuantos = 0;
+            for (int b = 0; b < 5; b++) if ((visitados & (1 << b)) != 0) cuantos++;
+            RegistrarSenda(EventoSenda.Bioma, 0, cuantos);
+        }
+        if (EsNoche && !enNochePrev) muertoEstaNoche = false;       // empieza la noche
+        if (!EsNoche && enNochePrev && !muertoEstaNoche)            // amanecio y seguiste en pie
+            RegistrarSenda(EventoSenda.Noche);
+        enNochePrev = EsNoche;
 
         // spawner de draugr alrededor (mas de noche)
         if (Time.time > proxSpawn && !tiendaAbierta)
@@ -673,6 +765,32 @@ public class GestorAventura : MonoBehaviour
         GUI.color = Color.white;
         LabelSombra(or_, lugar, new GUIStyle(estiloHud) { fontSize = 18, alignment = TextAnchor.MiddleCenter });
 
+        // ---- SENDA DEL EINHERJAR: tu siguiente paso, siempre visible ----
+        Rect sr = new Rect(Screen.width - 356, 56, 336, 64);
+        GUI.color = new Color(0f, 0f, 0f, 0.5f);
+        GUI.DrawTexture(sr, texBlanca);
+        GUI.color = new Color(0.85f, 0.68f, 0.28f, 0.9f);
+        GUI.DrawTexture(new Rect(sr.x, sr.y, 3, sr.height), texBlanca);
+        GUI.color = Color.white;
+        if (pasoSenda < Senda.Length)
+        {
+            PasoSenda paso = Senda[pasoSenda];
+            string prog = paso.meta > 1 ? "   (" + Mathf.Min(progSenda, paso.meta) + "/" + paso.meta + ")" : "";
+            GUIStyle tituloSenda = new GUIStyle(estiloMision) { alignment = TextAnchor.UpperLeft, fontSize = 13 };
+            tituloSenda.normal.textColor = new Color(1f, 0.85f, 0.3f);
+            GUI.Label(new Rect(sr.x + 12, sr.y + 6, sr.width - 20, 20),
+                      "SENDA DEL EINHERJAR  " + (pasoSenda + 1) + "/" + Senda.Length, tituloSenda);
+            GUI.Label(new Rect(sr.x + 12, sr.y + 28, sr.width - 20, 30),
+                      paso.desc + prog + "   +" + paso.recompensa,
+                      new GUIStyle(estiloMision) { alignment = TextAnchor.UpperLeft, fontSize = 15 });
+        }
+        else
+        {
+            GUIStyle fin = new GUIStyle(estiloMision) { alignment = TextAnchor.MiddleCenter, fontSize = 16 };
+            fin.normal.textColor = new Color(1f, 0.85f, 0.3f);
+            GUI.Label(sr, "SENDA COMPLETA\n¡Eres un EINHERJAR!", fin);
+        }
+
         // brujula simple: direccion al punto de descanso
         Vector3 aCasa = Hoguera.PuntoRespawn - Bjorn.transform.position;
         aCasa.y = 0f;
@@ -680,7 +798,7 @@ public class GestorAventura : MonoBehaviour
         {
             float angulo = Vector3.SignedAngle(Bjorn.transform.forward, aCasa, Vector3.up);
             string flecha = Mathf.Abs(angulo) < 30f ? "^" : angulo < 0f ? "<" : ">";
-            LabelSombra(new Rect(Screen.width - 330, 58, 310, 28),
+            LabelSombra(new Rect(Screen.width - 330, 126, 310, 28),
                         flecha + "  hoguera a " + Mathf.RoundToInt(aCasa.magnitude) + "m",
                         new GUIStyle(estiloMision) { fontSize = 16 });
         }
